@@ -308,6 +308,23 @@ def train(
                 vf=net_arch.get("vf", [64, 64]),
             )
     
+    # Convert activation_fn string to actual function
+    if "activation_fn" in policy_kwargs:
+        activation_name = policy_kwargs["activation_fn"]
+        if isinstance(activation_name, str):
+            import torch.nn as nn
+            activation_map = {
+                "tanh": nn.Tanh,
+                "relu": nn.ReLU,
+                "elu": nn.ELU,
+                "leaky_relu": nn.LeakyReLU,
+                "gelu": nn.GELU,
+                "silu": nn.SiLU,
+            }
+            policy_kwargs["activation_fn"] = activation_map.get(
+                activation_name.lower(), nn.Tanh
+            )
+    
     common_params = {
         "policy": algo_config.get("policy", "MlpPolicy"),
         "env": env,

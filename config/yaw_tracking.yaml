@@ -14,12 +14,19 @@ environment:
   hover_height: 1.0
   hover_position: [0.0, 0.0]
   
-  # Target motion patterns
+  # Target motion patterns (basic + advanced)
   target_patterns:
+    # Basic patterns
     - "circular"
     - "random"
     - "sinusoidal"
     - "step"
+    # Advanced patterns
+    - "figure8"
+    - "spiral"
+    - "evasive"
+    - "lissajous"
+    - "multi_frequency"
   target_radius: 3.0  # meters from drone
   
   # Target speed range (used for curriculum) - start slow for stability
@@ -75,16 +82,17 @@ algorithm:
   vf_coef: 0.5            # Value function coefficient
   max_grad_norm: 0.5      # Gradient clipping
   
-  # Network architecture
+  # Network architecture (larger for complex trajectories)
   policy: "MlpPolicy"
   policy_kwargs:
     net_arch:
-      pi: [64, 64]        # Policy network (small for simple task)
-      vf: [64, 64]        # Value network
+      pi: [256, 256, 128]   # Policy network (larger for complex patterns)
+      vf: [256, 256, 128]   # Value network
+    activation_fn: "tanh"   # Smooth activation for control
 
 training:
-  # Total training timesteps
-  total_timesteps: 500_000
+  # Total training timesteps (increased for complex trajectories)
+  total_timesteps: 1_000_000
   
   # Parallel environments
   n_envs: 8
@@ -105,29 +113,58 @@ training:
   n_eval_episodes: 10     # Episodes per evaluation
   
   # Curriculum learning
-  # Start very slow, gradually increase
+  # Start with simple patterns, gradually add complexity
   curriculum:
     enabled: true
     stages:
+      # Phase 1: Basic learning (0-200k)
       - timesteps: 0
         target_speed_max: 0.1
         target_patterns: ["circular"]
         description: "Stage 1: Very slow circular target"
       
-      - timesteps: 100_000
+      - timesteps: 50_000
         target_speed_max: 0.15
-        target_patterns: ["circular"]
-        description: "Stage 2: Slow circular target"
-      
-      - timesteps: 250_000
-        target_speed_max: 0.2
         target_patterns: ["circular", "sinusoidal"]
-        description: "Stage 3: Slightly faster, two patterns"
+        description: "Stage 2: Slow, smooth patterns"
       
-      - timesteps: 400_000
+      - timesteps: 100_000
+        target_speed_max: 0.2
+        target_patterns: ["circular", "sinusoidal", "figure8"]
+        description: "Stage 3: Introduce figure-8 pattern"
+      
+      # Phase 2: Intermediate (200k-400k)
+      - timesteps: 200_000
+        target_speed_max: 0.25
+        target_patterns: ["circular", "sinusoidal", "figure8", "lissajous"]
+        description: "Stage 4: Add Lissajous curves"
+      
+      - timesteps: 300_000
         target_speed_max: 0.3
-        target_patterns: ["circular", "sinusoidal", "random"]
-        description: "Stage 4: Moderate speed, three patterns"
+        target_patterns: ["circular", "sinusoidal", "figure8", "lissajous", "spiral"]
+        description: "Stage 5: Add spiral (variable radius)"
+      
+      # Phase 3: Advanced (400k-600k)
+      - timesteps: 400_000
+        target_speed_max: 0.4
+        target_patterns: ["circular", "sinusoidal", "figure8", "lissajous", "spiral", "random"]
+        description: "Stage 6: Add random motion"
+      
+      - timesteps: 500_000
+        target_speed_max: 0.5
+        target_patterns: ["circular", "sinusoidal", "figure8", "lissajous", "spiral", "random", "step"]
+        description: "Stage 7: Add step changes"
+      
+      # Phase 4: Expert (600k+)
+      - timesteps: 600_000
+        target_speed_max: 0.6
+        target_patterns: ["circular", "sinusoidal", "figure8", "lissajous", "spiral", "random", "step", "multi_frequency"]
+        description: "Stage 8: Add multi-frequency patterns"
+      
+      - timesteps: 750_000
+        target_speed_max: 0.8
+        target_patterns: ["circular", "sinusoidal", "figure8", "lissajous", "spiral", "random", "step", "multi_frequency", "evasive"]
+        description: "Stage 9: Full complexity - all patterns including evasive"
 
 evaluation:
   # Evaluation settings

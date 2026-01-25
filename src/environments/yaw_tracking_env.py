@@ -21,6 +21,12 @@ class TargetPatternType(Enum):
     RANDOM = "random"
     SINUSOIDAL = "sinusoidal"
     STEP = "step"
+    # Advanced patterns
+    FIGURE8 = "figure8"
+    SPIRAL = "spiral"
+    EVASIVE = "evasive"
+    LISSAJOUS = "lissajous"
+    MULTI_FREQUENCY = "multi_frequency"
 
 
 class TargetPattern(ABC):
@@ -210,6 +216,279 @@ class StepTarget(TargetPattern):
         self.last_step_time = 0.0
 
 
+# =============================================================================
+# Advanced Target Patterns
+# =============================================================================
+
+
+class Figure8Target(TargetPattern):
+    """Target that follows a figure-8 (lemniscate) pattern.
+    
+    Creates smooth, continuous motion with direction reversals,
+    challenging the controller to handle acceleration changes.
+    """
+    
+    def __init__(
+        self,
+        radius: float = 3.0,
+        angular_velocity: float = 0.5,
+        height: float = 1.0,
+    ):
+        self.radius = radius
+        self.angular_velocity = angular_velocity
+        self.height = height
+        self.phase = 0.0
+    
+    def get_position(self, time: float, drone_position: np.ndarray) -> np.ndarray:
+        t = self.phase + self.angular_velocity * time
+        
+        # Lemniscate of Bernoulli parametric equations
+        # Modified for angular tracking (projects to a figure-8 when viewed from above)
+        scale = self.radius / (1 + np.sin(t) ** 2 + 0.1)  # Avoid singularity
+        
+        x = drone_position[0] + scale * np.cos(t)
+        y = drone_position[1] + scale * np.sin(t) * np.cos(t)
+        z = self.height
+        
+        return np.array([x, y, z])
+    
+    def get_angular_velocity(self) -> float:
+        return self.angular_velocity * 1.5  # Figure-8 has varying angular velocity
+    
+    def reset(self, rng: np.random.Generator) -> None:
+        self.phase = rng.uniform(0, 2 * np.pi)
+
+
+class SpiralTarget(TargetPattern):
+    """Target that spirals inward and outward.
+    
+    The radius changes over time, creating a dynamic tracking challenge
+    where the target moves closer and farther from the drone.
+    """
+    
+    def __init__(
+        self,
+        radius_min: float = 2.0,
+        radius_max: float = 5.0,
+        angular_velocity: float = 0.5,
+        spiral_frequency: float = 0.1,
+        height: float = 1.0,
+    ):
+        self.radius_min = radius_min
+        self.radius_max = radius_max
+        self.angular_velocity = angular_velocity
+        self.spiral_frequency = spiral_frequency
+        self.height = height
+        self.phase = 0.0
+        self.spiral_phase = 0.0
+    
+    def get_position(self, time: float, drone_position: np.ndarray) -> np.ndarray:
+        angle = self.phase + self.angular_velocity * time
+        
+        # Radius oscillates between min and max
+        radius_range = (self.radius_max - self.radius_min) / 2
+        radius_mid = (self.radius_max + self.radius_min) / 2
+        current_radius = radius_mid + radius_range * np.sin(
+            self.spiral_phase + self.spiral_frequency * time
+        )
+        
+        x = drone_position[0] + current_radius * np.cos(angle)
+        y = drone_position[1] + current_radius * np.sin(angle)
+        z = self.height
+        
+        return np.array([x, y, z])
+    
+    def get_angular_velocity(self) -> float:
+        return self.angular_velocity
+    
+    def reset(self, rng: np.random.Generator) -> None:
+        self.phase = rng.uniform(0, 2 * np.pi)
+        self.spiral_phase = rng.uniform(0, 2 * np.pi)
+
+
+class EvasiveTarget(TargetPattern):
+    """Target that performs aggressive, unpredictable evasive maneuvers.
+    
+    Simulates a target actively trying to avoid being tracked,
+    with sudden direction changes and variable speeds.
+    """
+    
+    def __init__(
+        self,
+        radius: float = 3.0,
+        base_angular_velocity: float = 0.5,
+        jerk_probability: float = 0.02,
+        max_jerk_magnitude: float = 2.0,
+        height: float = 1.0,
+    ):
+        self.radius = radius
+        self.base_angular_velocity = base_angular_velocity
+        self.jerk_probability = jerk_probability
+        self.max_jerk_magnitude = max_jerk_magnitude
+        self.height = height
+        
+        self.current_angle = 0.0
+        self.current_velocity = 0.0
+        self.target_velocity = 0.0
+        self.last_update_time = 0.0
+        self._rng: Optional[np.random.Generator] = None
+    
+    def get_position(self, time: float, drone_position: np.ndarray) -> np.ndarray:
+        dt = time - self.last_update_time
+        if dt > 0 and self._rng is not None:
+            # Possibly trigger a jerk (sudden direction change)
+            if self._rng.random() < self.jerk_probability:
+                self.target_velocity = self._rng.uniform(
+                    -self.max_jerk_magnitude * self.base_angular_velocity,
+                    self.max_jerk_magnitude * self.base_angular_velocity
+                )
+            
+            # Smooth velocity transition
+            alpha = min(1.0, dt * 2.0)  # Smoothing factor
+            self.current_velocity += alpha * (self.target_velocity - self.current_velocity)
+            
+            # Update angle
+            self.current_angle += self.current_velocity * dt
+            self.last_update_time = time
+        
+        x = drone_position[0] + self.radius * np.cos(self.current_angle)
+        y = drone_position[1] + self.radius * np.sin(self.current_angle)
+        z = self.height
+        
+        return np.array([x, y, z])
+    
+    def get_angular_velocity(self) -> float:
+        return abs(self.current_velocity) if self.current_velocity != 0 else self.base_angular_velocity
+    
+    def reset(self, rng: np.random.Generator) -> None:
+        self._rng = rng
+        self.current_angle = rng.uniform(0, 2 * np.pi)
+        self.current_velocity = rng.uniform(-1, 1) * self.base_angular_velocity
+        self.target_velocity = self.current_velocity
+        self.last_update_time = 0.0
+
+
+class LissajousTarget(TargetPattern):
+    """Target following Lissajous curves.
+    
+    Creates complex, non-repeating patterns by combining two
+    sinusoidal motions at different frequencies.
+    """
+    
+    def __init__(
+        self,
+        radius: float = 3.0,
+        freq_x: float = 1.0,
+        freq_y: float = 1.5,
+        phase_offset: float = np.pi / 4,
+        angular_velocity: float = 0.5,
+        height: float = 1.0,
+    ):
+        self.radius = radius
+        self.freq_x = freq_x
+        self.freq_y = freq_y
+        self.phase_offset = phase_offset
+        self.angular_velocity = angular_velocity
+        self.height = height
+        self.phase = 0.0
+    
+    def get_position(self, time: float, drone_position: np.ndarray) -> np.ndarray:
+        t = self.phase + self.angular_velocity * time
+        
+        # Lissajous parametric equations
+        x = drone_position[0] + self.radius * np.sin(self.freq_x * t)
+        y = drone_position[1] + self.radius * np.sin(self.freq_y * t + self.phase_offset)
+        z = self.height
+        
+        return np.array([x, y, z])
+    
+    def get_angular_velocity(self) -> float:
+        # Average angular velocity (varies along the curve)
+        return self.angular_velocity * max(self.freq_x, self.freq_y)
+    
+    def reset(self, rng: np.random.Generator) -> None:
+        self.phase = rng.uniform(0, 2 * np.pi)
+        # Randomize frequency ratio for variety
+        ratios = [(1, 2), (2, 3), (3, 4), (1, 3), (2, 5), (3, 5)]
+        ratio = ratios[rng.integers(0, len(ratios))]
+        self.freq_x = ratio[0]
+        self.freq_y = ratio[1]
+        self.phase_offset = rng.uniform(0, np.pi / 2)
+
+
+class MultiFrequencyTarget(TargetPattern):
+    """Target with motion composed of multiple frequency components.
+    
+    Combines several sinusoidal waves to create complex, realistic
+    motion patterns that are harder to predict.
+    """
+    
+    def __init__(
+        self,
+        radius: float = 3.0,
+        base_frequency: float = 0.2,
+        num_harmonics: int = 3,
+        height: float = 1.0,
+    ):
+        self.radius = radius
+        self.base_frequency = base_frequency
+        self.num_harmonics = num_harmonics
+        self.height = height
+        
+        # Harmonic amplitudes and phases (randomized on reset)
+        self.amplitudes: List[float] = []
+        self.phases: List[float] = []
+        self.frequencies: List[float] = []
+    
+    def get_position(self, time: float, drone_position: np.ndarray) -> np.ndarray:
+        if not self.amplitudes:
+            # Not yet reset, use simple circular
+            angle = self.base_frequency * time
+        else:
+            # Sum of harmonics
+            angle = 0.0
+            for amp, freq, phase in zip(self.amplitudes, self.frequencies, self.phases):
+                angle += amp * np.sin(2 * np.pi * freq * time + phase)
+        
+        x = drone_position[0] + self.radius * np.cos(angle)
+        y = drone_position[1] + self.radius * np.sin(angle)
+        z = self.height
+        
+        return np.array([x, y, z])
+    
+    def get_angular_velocity(self) -> float:
+        if not self.amplitudes:
+            return self.base_frequency
+        # Approximate max angular velocity
+        max_vel = sum(
+            amp * 2 * np.pi * freq 
+            for amp, freq in zip(self.amplitudes, self.frequencies)
+        )
+        return max_vel
+    
+    def reset(self, rng: np.random.Generator) -> None:
+        self.amplitudes = []
+        self.phases = []
+        self.frequencies = []
+        
+        # Generate harmonics with decreasing amplitudes
+        total_amplitude = 0.0
+        for i in range(self.num_harmonics):
+            # Amplitude decreases for higher harmonics
+            amp = 1.0 / (i + 1) ** 0.5
+            freq = self.base_frequency * (i + 1) * rng.uniform(0.8, 1.2)
+            phase = rng.uniform(0, 2 * np.pi)
+            
+            self.amplitudes.append(amp)
+            self.frequencies.append(freq)
+            self.phases.append(phase)
+            total_amplitude += amp
+        
+        # Normalize so total amplitude equals 2*pi for full rotation
+        scale = 2 * np.pi / total_amplitude
+        self.amplitudes = [a * scale for a in self.amplitudes]
+
+
 @dataclass
 class YawTrackingConfig:
     """Configuration for yaw tracking environment."""
@@ -332,6 +611,7 @@ class YawTrackingEnv(gym.Env):
         cfg = self.config
         patterns = {}
         
+        # Basic patterns
         if "circular" in cfg.target_patterns:
             patterns["circular"] = CircularTarget(
                 radius=cfg.target_radius,
@@ -357,6 +637,47 @@ class YawTrackingEnv(gym.Env):
             patterns["step"] = StepTarget(
                 radius=cfg.target_radius,
                 step_interval=3.0,
+                height=cfg.hover_height,
+            )
+        
+        # Advanced patterns
+        if "figure8" in cfg.target_patterns:
+            patterns["figure8"] = Figure8Target(
+                radius=cfg.target_radius,
+                angular_velocity=cfg.target_speed_min,
+                height=cfg.hover_height,
+            )
+        
+        if "spiral" in cfg.target_patterns:
+            patterns["spiral"] = SpiralTarget(
+                radius_min=cfg.target_radius * 0.5,
+                radius_max=cfg.target_radius * 1.5,
+                angular_velocity=cfg.target_speed_min,
+                spiral_frequency=0.1,
+                height=cfg.hover_height,
+            )
+        
+        if "evasive" in cfg.target_patterns:
+            patterns["evasive"] = EvasiveTarget(
+                radius=cfg.target_radius,
+                base_angular_velocity=cfg.target_speed_min,
+                jerk_probability=0.02,
+                max_jerk_magnitude=2.0,
+                height=cfg.hover_height,
+            )
+        
+        if "lissajous" in cfg.target_patterns:
+            patterns["lissajous"] = LissajousTarget(
+                radius=cfg.target_radius,
+                angular_velocity=cfg.target_speed_min,
+                height=cfg.hover_height,
+            )
+        
+        if "multi_frequency" in cfg.target_patterns:
+            patterns["multi_frequency"] = MultiFrequencyTarget(
+                radius=cfg.target_radius,
+                base_frequency=cfg.target_speed_min / (2 * np.pi),
+                num_harmonics=3,
                 height=cfg.hover_height,
             )
         
@@ -438,12 +759,17 @@ class YawTrackingEnv(gym.Env):
         self._current_pattern = self._target_patterns[pattern_name]
         self._current_pattern.reset(self._np_random)
         
-        # Randomize target speed
+        # Randomize target speed for patterns that support it
+        speed = self._np_random.uniform(
+            self.config.target_speed_min,
+            self.config.target_speed_max,
+        )
         if hasattr(self._current_pattern, 'angular_velocity'):
-            self._current_pattern.angular_velocity = self._np_random.uniform(
-                self.config.target_speed_min,
-                self.config.target_speed_max,
-            )
+            self._current_pattern.angular_velocity = speed
+        if hasattr(self._current_pattern, 'base_angular_velocity'):
+            self._current_pattern.base_angular_velocity = speed
+        if hasattr(self._current_pattern, 'base_frequency'):
+            self._current_pattern.base_frequency = speed / (2 * np.pi)
         
         # Reset state tracking
         self._step_count = 0
