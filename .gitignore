@@ -65,6 +65,7 @@ htmlcov/
 .tox/
 .nox/
 .pytest_cache/
+.cache/
 *.cover
 coverage.xml
 *.py,cover

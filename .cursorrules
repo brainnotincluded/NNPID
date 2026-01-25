@@ -7,10 +7,11 @@ This is a drone simulation project integrating MuJoCo physics with ArduPilot SIT
 ## Key Files to Understand First
 
 1. **ARCHITECTURE.md** - Comprehensive code structure guide
-2. **README.md** - Project overview and quick start
-3. **src/core/mujoco_sim.py** - Main physics simulator
-4. **src/environments/yaw_tracking_env.py** - Main training environment
-5. **config/yaw_tracking.yaml** - Training configuration
+2. **CONTRIBUTING.md** - Code standards and contribution rules
+3. **README.md** - Project overview and quick start
+4. **src/core/mujoco_sim.py** - Main physics simulator
+5. **src/environments/yaw_tracking_env.py** - Main training environment
+6. **config/yaw_tracking.yaml** - Training configuration
 
 ## Directory Structure
 

@@ -164,3 +164,14 @@ exclude_lines = [
     "raise NotImplementedError",
     "if TYPE_CHECKING:",
 ]
+
+# =============================================================================
+# Security - Bandit
+# =============================================================================
+
+[tool.bandit]
+exclude_dirs = ["tests", "scripts"]
+skips = ["B101", "B311"]  # assert, random
+
+[tool.bandit.assert_used]
+skips = ["*_test.py", "*test_*.py"]
