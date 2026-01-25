@@ -1,0 +1,151 @@
+# NNPID Project - Cursor Rules for LLM Agents
+
+## Project Overview
+
+This is a drone simulation project integrating MuJoCo physics with ArduPilot SITL for training neural network controllers. The main task is yaw tracking - training a neural network to keep a drone facing a moving target.
+
+## Key Files to Understand First
+
+1. **ARCHITECTURE.md** - Comprehensive code structure guide
+2. **README.md** - Project overview and quick start
+3. **src/core/mujoco_sim.py** - Main physics simulator
+4. **src/environments/yaw_tracking_env.py** - Main training environment
+5. **config/yaw_tracking.yaml** - Training configuration
+
+## Directory Structure
+
+```
+src/
+├── core/           # MuJoCo physics simulation
+├── environments/   # Gymnasium RL environments
+├── controllers/    # PID and NN controllers
+├── communication/  # SITL protocols
+├── deployment/     # Model deployment
+├── utils/          # Quaternion math, transforms
+└── visualization/  # Rendering
+```
+
+## Code Conventions
+
+### Python Style
+- Python 3.10+ with type hints
+- Numpy for numerical operations
+- Dataclasses for data containers
+- snake_case for functions/variables
+- PascalCase for classes
+
+### Key Classes
+
+```python
+# Physics
+from src.core.mujoco_sim import MuJoCoSimulator, QuadrotorState
+
+# Environment
+from src.environments import YawTrackingEnv, YawTrackingConfig
+
+# Controllers
+from src.controllers import PIDController, NNController
+
+# Utils
+from src.utils.rotations import Rotations
+```
+
+### Coordinate Frames
+
+- **MuJoCo**: Z-up (ENU), X-forward
+- **ArduPilot**: NED (North-East-Down)
+- **Body frame**: X-forward, Y-left, Z-up
+
+### Motor Layout (X500 Quadrotor)
+
+```
+  Front
+  1   2      1=FR (CCW), 2=FL (CW)
+    X        3=BL (CCW), 4=BR (CW)
+  4   3
+  Back
+
+Motor mixing:
+m1 = thrust + roll + pitch + yaw
+m2 = thrust - roll + pitch - yaw
+m3 = thrust - roll - pitch + yaw
+m4 = thrust + roll - pitch - yaw
+```
+
+## Common Tasks
+
+### Run Training
+```bash
+python scripts/train_yaw_tracker.py --timesteps 500000
+```
+
+### Evaluate Model
+```bash
+python scripts/evaluate_yaw_tracker.py --model runs/best_model
+```
+
+### Run with ArduPilot SITL
+```bash
+# Terminal 1
+sim_vehicle.py -v ArduCopter -f JSON --console
+
+# Terminal 2
+python scripts/run_ardupilot_sim.py
+```
+
+## When Modifying Code
+
+### Adding New Environment
+1. Create `src/environments/new_env.py`
+2. Inherit from `BaseDroneEnv`
+3. Implement: `_get_observation()`, `_compute_reward()`, `_check_termination()`
+4. Register with `gym.register()`
+5. Add config in `config/`
+
+### Modifying Physics
+1. Edit `models/quadrotor_x500.xml`
+2. Update `src/core/mujoco_sim.py` if new sensors/actuators
+
+### Adding New Controller
+1. Create `src/controllers/new_controller.py`
+2. Implement `compute_action(state) -> np.ndarray`
+
+## Testing
+
+```bash
+pytest tests/ -v
+```
+
+## Key Parameters
+
+### YawTrackingEnv
+- `hover_height`: Target altitude (default 1.0m)
+- `max_yaw_rate`: Max yaw rate command (default 2.0 rad/s)
+- `target_speed_min/max`: Target angular velocity
+- `base_thrust`: Hover thrust (~0.62 for 2kg drone)
+
+### Physics
+- Timestep: 0.002s (500Hz)
+- Drone mass: 2.0 kg
+- Motor max thrust: 8N each
+- Arm length: 0.25m
+
+## Debugging Tips
+
+1. **Drone crashes**: Check `base_thrust` value, motor mixing signs
+2. **Training fails**: Start with slower targets (speed 0.1)
+3. **SITL issues**: Check ports 9002, 9003, 5760
+
+## Do Not
+
+- Don't modify MuJoCo model without updating physics code
+- Don't change motor order without updating mixing matrix
+- Don't use blocking I/O in step() functions
+- Don't forget to call env.close() after use
+
+## External Resources
+
+- MuJoCo: https://mujoco.readthedocs.io/
+- Gymnasium: https://gymnasium.farama.org/
+- Stable-Baselines3: https://stable-baselines3.readthedocs.io/
+- ArduPilot SITL: https://ardupilot.org/dev/docs/sitl-simulator-software-in-the-loop.html

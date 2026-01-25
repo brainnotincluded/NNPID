@@ -1,196 +1,113 @@
-# NNPID SITL MuJoCo
+# NNPID - Neural Network PID Controller for Drone Simulation
 
-A production-grade drone simulation framework connecting **PX4 SITL** with **MuJoCo** physics, featuring **Gymnasium-compatible** environments for reinforcement learning.
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![MuJoCo](https://img.shields.io/badge/physics-MuJoCo-green.svg)](https://mujoco.org/)
+[![Gymnasium](https://img.shields.io/badge/RL-Gymnasium-orange.svg)](https://gymnasium.farama.org/)
 
-## Features
+A high-fidelity drone simulation framework integrating **MuJoCo physics** with **ArduPilot SITL** for training neural network controllers using reinforcement learning.
 
-- **High-Fidelity Physics**: MuJoCo-based quadrotor simulation with realistic dynamics
-- **PX4 Integration**: MAVLink HIL protocol for connecting to PX4 SITL autopilot
-- **RL Training**: Gymnasium-compatible environments for training neural network controllers
-- **Lockstep Simulation**: Deterministic simulation for reproducible experiments
-- **Modular Architecture**: Clean separation between physics, control, and learning components
+## Overview
 
-## Architecture
+This project provides:
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    NNPID SITL MuJoCo                            │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────────┐  │
-│  │   MuJoCo     │    │   MAVLink    │    │   Gymnasium      │  │
-│  │   Physics    │◄──►│   Bridge     │◄──►│   Environments   │  │
-│  └──────────────┘    └──────────────┘    └──────────────────┘  │
-│         │                   │                     │             │
-│         ▼                   ▼                     ▼             │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────────┐  │
-│  │   Sensor     │    │   PX4 SITL   │    │   RL Training    │  │
-│  │   Simulation │    │   (external) │    │   (SB3/PyTorch)  │  │
-│  └──────────────┘    └──────────────┘    └──────────────────┘  │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-## Installation
-
-### Prerequisites
-
-- Python 3.10+
-- MuJoCo 3.0+
-- PX4 SITL (for HIL simulation)
-
-### Install from source
-
-```bash
-# Clone repository
-git clone https://github.com/your-org/nnpid-sitl-mujoco.git
-cd nnpid-sitl-mujoco
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # Linux/macOS
-# or: venv\Scripts\activate  # Windows
-
-# Install dependencies
-pip install -e ".[dev]"
-```
-
-### Install with uv (recommended)
-
-```bash
-uv pip install -e ".[dev]"
-```
+- **MuJoCo-based quadrotor simulation** with realistic physics
+- **ArduPilot SITL integration** via JSON/MAVLink protocols
+- **Gymnasium environments** for reinforcement learning
+- **Neural network controllers** trained with PPO/SAC
+- **Yaw tracking task** as a demonstration of NN control
 
 ## Quick Start
 
-### 1. Run Standalone Simulation
-
-Test the MuJoCo simulation with a PID controller:
-
 ```bash
-python scripts/visualize.py view --model x500 --target 0 0 1
-```
+# Clone repository
+git clone https://github.com/brainnotincluded/NNPID.git
+cd NNPID
 
-### 2. Connect to PX4 SITL
+# Install dependencies (using uv - recommended)
+uv sync
 
-Start PX4 SITL first, then run the MuJoCo simulation:
+# Or using pip
+pip install -e .
 
-```bash
-# Terminal 1: Start PX4 SITL (in PX4 directory)
-make px4_sitl none_iris
+# Train yaw tracking model
+python scripts/train_yaw_tracker.py --timesteps 500000
 
-# Terminal 2: Start MuJoCo simulation
-python scripts/run_sitl_sim.py --model x500
-```
-
-### 3. Train RL Controller
-
-Train a neural network controller using PPO:
-
-```bash
-python scripts/train_controller.py --env hover --config config/training.yaml
-```
-
-### 4. Evaluate Trained Policy
-
-```bash
-python scripts/evaluate.py runs/hover_*/best_model/best_model.zip --env hover --episodes 10
+# Evaluate trained model
+python scripts/evaluate_yaw_tracker.py --model runs/latest/best_model
 ```
 
 ## Project Structure
 
 ```
-nnpid-sitl-mujoco/
-├── src/
-│   ├── core/                    # Physics simulation
-│   │   ├── mujoco_sim.py       # MuJoCo wrapper
-│   │   ├── quadrotor.py        # Dynamics model
-│   │   └── sensors.py          # Sensor simulation
-│   ├── communication/           # PX4 SITL bridge
-│   │   ├── mavlink_bridge.py   # MAVLink HIL protocol
-│   │   ├── messages.py         # Message definitions
-│   │   └── lockstep.py         # Timing synchronization
-│   ├── environments/            # Gymnasium environments
-│   │   ├── base_drone_env.py   # Base environment
-│   │   ├── hover_env.py        # Position hold task
-│   │   ├── waypoint_env.py     # Waypoint navigation
-│   │   └── trajectory_env.py   # Trajectory tracking
-│   ├── controllers/             # Control interfaces
-│   │   ├── base_controller.py  # Abstract controller
-│   │   ├── sitl_controller.py  # PX4 passthrough
-│   │   └── nn_controller.py    # Neural network
-│   ├── utils/                   # Utilities
-│   │   ├── transforms.py       # Coordinate transforms
-│   │   ├── rotations.py        # Quaternion math
-│   │   └── logger.py           # Telemetry logging
-│   └── visualization/           # Rendering
-│       ├── viewer.py           # MuJoCo viewer
-│       └── dashboard.py        # Real-time plots
-├── models/                      # MuJoCo XML models
-│   ├── quadrotor_x500.xml      # X500 frame
-│   └── quadrotor_generic.xml   # Simplified model
-├── config/                      # Configuration files
-│   ├── default.yaml            # Default settings
-│   ├── training.yaml           # RL hyperparameters
-│   └── px4_sitl.yaml          # PX4 connection
-├── scripts/                     # CLI tools
-│   ├── run_sitl_sim.py        # SITL simulation
-│   ├── train_controller.py    # RL training
-│   ├── evaluate.py            # Policy evaluation
-│   └── visualize.py           # Visualization
-└── tests/                       # Test suite
+NNPID/
+├── src/                    # Main source code
+│   ├── core/              # MuJoCo simulation core
+│   │   ├── mujoco_sim.py  # Main simulator class
+│   │   ├── quadrotor.py   # Quadrotor dynamics
+│   │   └── sensors.py     # Sensor models
+│   ├── environments/      # Gymnasium environments
+│   │   ├── base_drone_env.py      # Base environment
+│   │   ├── yaw_tracking_env.py    # Yaw tracking task
+│   │   ├── hover_env.py           # Hover task
+│   │   └── waypoint_env.py        # Waypoint navigation
+│   ├── controllers/       # Control algorithms
+│   │   ├── base_controller.py     # PID controller
+│   │   ├── nn_controller.py       # Neural network controller
+│   │   └── yaw_rate_controller.py # Yaw rate controller
+│   ├── communication/     # SITL communication
+│   │   ├── mavlink_bridge.py      # MAVLink protocol
+│   │   └── messages.py            # Message definitions
+│   ├── deployment/        # Model deployment
+│   │   ├── yaw_tracker_sitl.py    # Deploy to ArduPilot SITL
+│   │   └── model_export.py        # Export models
+│   ├── utils/             # Utilities
+│   │   ├── rotations.py   # Quaternion math
+│   │   └── transforms.py  # Coordinate transforms
+│   └── visualization/     # Visualization tools
+│       └── viewer.py      # MuJoCo viewer
+├── scripts/               # Executable scripts
+│   ├── train_yaw_tracker.py       # Train yaw tracking
+│   ├── evaluate_yaw_tracker.py    # Evaluate models
+│   ├── run_ardupilot_sim.py       # Run with ArduPilot SITL
+│   └── run_yaw_tracker_sitl.py    # Deploy NN to SITL
+├── models/                # MuJoCo XML models
+│   └── quadrotor_x500.xml # X500 quadrotor model
+├── config/                # Configuration files
+│   ├── yaw_tracking.yaml  # Yaw tracking config
+│   └── simulation.yaml    # Simulation settings
+├── tests/                 # Unit tests
+├── docs/                  # Documentation
+└── runs/                  # Training runs & checkpoints
 ```
 
-## Configuration
+## Key Components
 
-Configuration is loaded from YAML files in `config/`. Key parameters:
+### 1. MuJoCo Simulator (`src/core/mujoco_sim.py`)
 
-### Simulation (`default.yaml`)
+High-fidelity physics simulation with:
+- 500Hz physics timestep
+- Accurate motor dynamics
+- IMU, gyroscope, accelerometer sensors
+- Ground contact detection
 
-```yaml
-simulation:
-  timestep: 0.002          # 500 Hz physics
-  gravity: [0, 0, -9.81]
-  
-quadrotor:
-  mass: 2.0
-  max_thrust_per_motor: 8.0
-  arm_length: 0.25
+```python
+from src.core.mujoco_sim import MuJoCoSimulator
+
+sim = MuJoCoSimulator("models/quadrotor_x500.xml")
+sim.reset(position=[0, 0, 1])
+sim.step(motor_commands=[0.5, 0.5, 0.5, 0.5])
+state = sim.get_state()
 ```
 
-### Training (`training.yaml`)
+### 2. Gymnasium Environments (`src/environments/`)
 
-```yaml
-algorithm:
-  name: "PPO"
-  learning_rate: 3e-4
-  n_steps: 2048
-  
-training:
-  total_timesteps: 1_000_000
-  n_envs: 8
-```
-
-### PX4 Connection (`px4_sitl.yaml`)
-
-```yaml
-px4:
-  host: "127.0.0.1"
-  port: 4560
-  lockstep: true
-```
-
-## Environments
-
-### HoverEnv
-
-Maintain position at a target location.
+Standard RL interface for training:
 
 ```python
 import gymnasium as gym
-from src.environments.hover_env import HoverEnv
+from src.environments import YawTrackingEnv
 
-env = HoverEnv()
+env = YawTrackingEnv(render_mode="rgb_array")
 obs, info = env.reset()
 
 for _ in range(1000):
@@ -198,118 +115,120 @@ for _ in range(1000):
     obs, reward, terminated, truncated, info = env.step(action)
 ```
 
-### WaypointEnv
+### 3. Controllers (`src/controllers/`)
 
-Navigate through a sequence of waypoints.
+Both classical and neural network controllers:
 
-### TrajectoryEnv
+```python
+from src.controllers import PIDController, NNController
 
-Track a reference trajectory (circle, figure-8, etc.).
+# Classical PID
+pid = PIDController(kp=1.0, kd=0.1)
+
+# Neural network (trained)
+nn = NNController.load("runs/best_model")
+action = nn.predict(observation)
+```
+
+### 4. ArduPilot SITL Integration
+
+Connect MuJoCo simulation to ArduPilot:
+
+```bash
+# Terminal 1: Start ArduPilot SITL
+sim_vehicle.py -v ArduCopter -f JSON --console
+
+# Terminal 2: Run MuJoCo bridge
+python scripts/run_ardupilot_sim.py
+```
 
 ## Training
 
-### With Stable-Baselines3
+### Yaw Tracking Task
 
-```python
-from stable_baselines3 import PPO
-from src.environments.hover_env import HoverEnv
-
-env = HoverEnv()
-model = PPO("MlpPolicy", env, verbose=1)
-model.learn(total_timesteps=1_000_000)
-model.save("hover_policy")
-```
-
-### Command Line
+Train a neural network to keep the drone facing a moving target:
 
 ```bash
 # Basic training
-python scripts/train_controller.py --env hover
+python scripts/train_yaw_tracker.py
 
-# With custom config
-python scripts/train_controller.py --env hover --config my_config.yaml
-
-# Resume training
-python scripts/train_controller.py --env hover --resume checkpoints/model_500000.zip
+# With custom settings
+python scripts/train_yaw_tracker.py \
+    --config config/yaw_tracking.yaml \
+    --timesteps 1000000 \
+    --n-envs 8
 ```
 
-## PX4 SITL Integration
+### Configuration
 
-### Protocol
+Edit `config/yaw_tracking.yaml`:
 
-The simulation uses MAVLink HIL (Hardware-In-the-Loop) protocol:
+```yaml
+environment:
+  hover_height: 1.0
+  max_episode_steps: 1000
+  target_patterns: ["circular", "random"]
+  target_speed_min: 0.1
+  target_speed_max: 0.3
 
-- **Outgoing**: `HIL_SENSOR` (250 Hz), `HIL_GPS` (10 Hz)
-- **Incoming**: `HIL_ACTUATOR_CONTROLS` (motor commands)
+training:
+  algorithm: PPO
+  learning_rate: 0.0003
+  n_steps: 2048
+  batch_size: 64
+  policy_kwargs:
+    net_arch: [64, 64]
+```
 
-### Lockstep Mode
+## Deployment
 
-In lockstep mode, the simulation waits for each actuator command before stepping physics. This ensures:
-
-- Deterministic simulation
-- Synchronized timing with PX4
-- Reproducible experiments
-
-### Coordinate Frames
-
-- **MuJoCo**: Z-up, X-forward
-- **PX4/MAVLink**: NED (North-East-Down)
-- **Body frame**: FRD (Forward-Right-Down)
-
-Transforms are handled automatically by `src/utils/transforms.py`.
-
-## Testing
+Deploy trained model to ArduPilot SITL:
 
 ```bash
-# Run all tests
-pytest
-
-# Run with coverage
-pytest --cov=src --cov-report=html
-
-# Run specific test file
-pytest tests/test_mujoco_sim.py -v
+python scripts/run_yaw_tracker_sitl.py \
+    --model runs/best_model \
+    --connection udp:127.0.0.1:14550
 ```
 
-## Development
+## Requirements
 
-### Code Style
+- Python 3.10+
+- MuJoCo 3.0+
+- PyTorch or JAX (for neural networks)
+- ArduPilot SITL (optional, for deployment)
+
+### Install ArduPilot SITL
 
 ```bash
-# Format code
-black src/ tests/ scripts/
+# macOS
+brew install ardupilot/ardupilot/ardupilot-sitl
 
-# Lint
-ruff check src/ tests/ scripts/
-
-# Type check
-mypy src/
+# Linux
+git clone https://github.com/ArduPilot/ardupilot.git
+cd ardupilot && ./Tools/environment_install/install-prereqs-ubuntu.sh
 ```
 
-### Adding New Environments
+## Documentation
 
-1. Create new file in `src/environments/`
-2. Inherit from `BaseDroneEnv`
-3. Implement `_compute_reward()`, `_get_target()`, `_is_success()`
-4. Register in `src/environments/__init__.py`
+- [Getting Started](docs/GETTING_STARTED.md) - Setup and first steps
+- [Architecture](ARCHITECTURE.md) - Code structure for developers
+- [Training Guide](docs/TRAINING.md) - How to train models
+- [SITL Integration](docs/SITL_INTEGRATION.md) - ArduPilot connection
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make changes with tests
+4. Submit a pull request
 
 ## License
 
-MIT License
-
-## Citation
-
-```bibtex
-@software{nnpid_sitl_mujoco,
-  title = {NNPID SITL MuJoCo: Drone Simulation for RL},
-  year = {2026},
-  url = {https://github.com/your-org/nnpid-sitl-mujoco}
-}
-```
+MIT License - see LICENSE file for details.
 
 ## Acknowledgments
 
 - [MuJoCo](https://mujoco.org/) - Physics simulation
-- [PX4](https://px4.io/) - Autopilot stack
+- [Gymnasium](https://gymnasium.farama.org/) - RL interface
 - [Stable-Baselines3](https://stable-baselines3.readthedocs.io/) - RL algorithms
-- [Gymnasium](https://gymnasium.farama.org/) - RL environment API
+- [ArduPilot](https://ardupilot.org/) - Flight controller
