@@ -169,6 +169,9 @@ def make_env(
         Factory function for creating environment
     """
     def _init() -> YawTrackingEnv:
+        # Get stabilizer gains from config
+        stabilizer = env_config.get("stabilizer", {})
+        
         # Build config from dict
         config = YawTrackingConfig(
             model=env_config.get("model", "generic"),
@@ -181,6 +184,13 @@ def make_env(
             target_speed_min=env_config.get("target_speed_min", 0.5),
             target_speed_max=env_config.get("target_speed_max", 2.0),
             max_yaw_rate=env_config.get("max_yaw_rate", 2.0),
+            # Stabilizer PD gains
+            altitude_kp=stabilizer.get("altitude_kp", 8.0),
+            altitude_kd=stabilizer.get("altitude_kd", 4.0),
+            attitude_kp=stabilizer.get("attitude_kp", 15.0),
+            attitude_kd=stabilizer.get("attitude_kd", 5.0),
+            yaw_rate_kp=stabilizer.get("yaw_rate_kp", 2.0),
+            base_thrust=stabilizer.get("base_thrust", 0.62),
         )
         
         env = YawTrackingEnv(config=config)

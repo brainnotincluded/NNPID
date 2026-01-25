@@ -530,16 +530,16 @@ class YawTrackingConfig:
     # Success criteria
     success_threshold: float = 0.1  # radians
     
-    # Termination - more lenient for learning
-    max_tilt_angle: float = 1.2  # radians (~69 degrees)
-    max_altitude_error: float = 5.0  # meters
+    # Termination - lenient for learning
+    max_tilt_angle: float = 1.0  # radians (~57 degrees)
+    max_altitude_error: float = 3.0  # meters
     
-    # Stabilizer PD gains
-    altitude_kp: float = 5.0
-    altitude_kd: float = 3.0
-    attitude_kp: float = 12.0
-    attitude_kd: float = 4.0
-    yaw_rate_kp: float = 1.5
+    # Stabilizer PD gains (aggressive for stability)
+    altitude_kp: float = 8.0
+    altitude_kd: float = 4.0
+    attitude_kp: float = 15.0
+    attitude_kd: float = 5.0
+    yaw_rate_kp: float = 2.0
     base_thrust: float = 0.62  # Hover throttle for 2kg drone with 4x8N motors
 
 

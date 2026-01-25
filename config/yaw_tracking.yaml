@@ -59,13 +59,14 @@ environment:
   max_tilt_angle: 0.8  # radians (~45 degrees)
   max_altitude_error: 2.0  # meters
   
-  # Internal stabilizer gains
+  # Internal stabilizer gains (aggressive for stability)
   stabilizer:
-    altitude_kp: 2.0
-    altitude_kd: 1.0
-    attitude_kp: 5.0
-    attitude_kd: 1.0
+    altitude_kp: 8.0
+    altitude_kd: 4.0
+    attitude_kp: 15.0
+    attitude_kd: 5.0
     yaw_rate_kp: 2.0
+    base_thrust: 0.62
 
 algorithm:
   name: "PPO"

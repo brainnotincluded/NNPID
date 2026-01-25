@@ -419,8 +419,11 @@ def evaluate(
     render_mode = "rgb_array" if render else None
     env = YawTrackingEnv(config=config, render_mode=render_mode)
     
-    # Patterns to test
-    test_patterns = patterns or ["circular", "random", "sinusoidal", "step"]
+    # Patterns to test (all available patterns)
+    test_patterns = patterns or [
+        "circular", "random", "sinusoidal", "step",
+        "figure8", "spiral", "evasive", "lissajous", "multi_frequency"
+    ]
     episodes_per_pattern = max(1, n_episodes // len(test_patterns))
     
     print(f"\nEvaluating on patterns: {test_patterns}")
@@ -494,7 +497,8 @@ def main():
         "--patterns",
         nargs="+",
         default=None,
-        choices=["circular", "random", "sinusoidal", "step"],
+        choices=["circular", "random", "sinusoidal", "step", 
+                 "figure8", "spiral", "evasive", "lissajous", "multi_frequency"],
         help="Target patterns to test",
     )
     parser.add_argument(
