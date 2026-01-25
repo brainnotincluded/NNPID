@@ -1,0 +1,35 @@
+# PX4 SITL Connection Configuration
+
+px4:
+  host: "127.0.0.1"
+  port: 4560
+  lockstep: true
+  
+  # Message rates (Hz)
+  hil_sensor_rate: 250
+  hil_gps_rate: 10
+  hil_state_rate: 50
+  
+  # Timeouts
+  connection_timeout: 30.0   # seconds
+  heartbeat_interval: 1.0    # seconds
+  receive_timeout: 0.1       # seconds
+  
+  # System IDs
+  system_id: 1
+  component_id: 1
+  
+mavlink:
+  # MAVLink protocol settings
+  dialect: "common"
+  source_system: 255        # GCS system ID
+  source_component: 0
+  
+  # Message fields
+  fields_updated_mask: 0x1FFF  # All HIL_SENSOR fields
+
+ground_station:
+  # Optional QGroundControl connection
+  enabled: false
+  host: "127.0.0.1"
+  port: 14550

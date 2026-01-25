@@ -1,0 +1,45 @@
+# Simulation Physics Configuration
+
+physics:
+  integrator: "RK4"        # Euler, RK4, implicit
+  solver_iterations: 50
+  contact_stiffness: 1e4
+  contact_damping: 1e2
+  
+  # Aerodynamics
+  enable_drag: true
+  drag_coefficient: 0.1
+  
+  # Ground interaction
+  ground_friction: 0.8
+  ground_restitution: 0.1
+
+environment:
+  # World bounds (NED frame)
+  bounds:
+    x: [-100.0, 100.0]
+    y: [-100.0, 100.0]
+    z: [-100.0, 0.1]       # Note: Z is down in NED
+    
+  # Wind (optional)
+  wind:
+    enabled: false
+    velocity: [0.0, 0.0, 0.0]  # m/s, NED
+    turbulence_intensity: 0.0
+    
+  # Obstacles (optional)
+  obstacles:
+    enabled: false
+    objects: []
+
+rendering:
+  enable_visualization: true
+  camera:
+    type: "tracking"       # fixed, tracking, free
+    distance: 5.0
+    elevation: -30.0       # degrees
+    azimuth: 45.0
+  
+  record_video: false
+  video_fps: 30
+  video_path: "recordings/"

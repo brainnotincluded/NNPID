@@ -1,0 +1,162 @@
+# Yaw Target Tracking Training Configuration
+# Train a neural network to control drone yaw to face a moving target
+
+environment:
+  type: "yaw_tracking"
+  
+  # Simulation settings
+  model: "generic"
+  physics_timestep: 0.002  # 500 Hz physics
+  control_frequency: 50.0  # 50 Hz control (NN inference)
+  max_episode_steps: 1000  # 20 seconds per episode
+  
+  # Hover settings
+  hover_height: 1.0
+  hover_position: [0.0, 0.0]
+  
+  # Target motion patterns
+  target_patterns:
+    - "circular"
+    - "random"
+    - "sinusoidal"
+    - "step"
+  target_radius: 3.0  # meters from drone
+  
+  # Target speed range (used for curriculum) - start slow for stability
+  target_speed_min: 0.1  # rad/s (initial) - very slow to start
+  target_speed_max: 0.3  # rad/s (final) - moderate speed
+  
+  # Action scaling
+  max_yaw_rate: 2.0  # rad/s
+  
+  # Observation noise (simulates sensor noise)
+  yaw_noise: 0.01
+  angular_velocity_noise: 0.01
+  
+  # Reward function weights
+  rewards:
+    facing_reward_weight: 1.0      # Main reward for facing target
+    facing_reward_scale: 5.0       # exp(-scale * error^2)
+    yaw_rate_penalty_weight: 0.1   # Penalize high yaw rates
+    action_rate_penalty_weight: 0.05  # Penalize jerky control
+    sustained_tracking_bonus: 0.5  # Bonus for sustained tracking
+    sustained_tracking_threshold: 0.1  # 0.1 rad = ~6 degrees
+    sustained_tracking_time: 0.5   # seconds on target for bonus
+    crash_penalty: 10.0
+    alive_bonus: 0.1
+  
+  # Success criteria
+  success_threshold: 0.1  # radians (~6 degrees)
+  
+  # Termination conditions
+  max_tilt_angle: 0.8  # radians (~45 degrees)
+  max_altitude_error: 2.0  # meters
+  
+  # Internal stabilizer gains
+  stabilizer:
+    altitude_kp: 2.0
+    altitude_kd: 1.0
+    attitude_kp: 5.0
+    attitude_kd: 1.0
+    yaw_rate_kp: 2.0
+
+algorithm:
+  name: "PPO"
+  
+  # Learning parameters
+  learning_rate: 3.0e-4
+  n_steps: 2048           # Steps per environment before update
+  batch_size: 64          # Minibatch size
+  n_epochs: 10            # Epochs per update
+  gamma: 0.99             # Discount factor
+  gae_lambda: 0.95        # GAE lambda
+  clip_range: 0.2         # PPO clip range
+  ent_coef: 0.01          # Entropy coefficient (exploration)
+  vf_coef: 0.5            # Value function coefficient
+  max_grad_norm: 0.5      # Gradient clipping
+  
+  # Network architecture
+  policy: "MlpPolicy"
+  policy_kwargs:
+    net_arch:
+      pi: [64, 64]        # Policy network (small for simple task)
+      vf: [64, 64]        # Value network
+
+training:
+  # Total training timesteps
+  total_timesteps: 500_000
+  
+  # Parallel environments
+  n_envs: 8
+  
+  # Random seed
+  seed: 42
+  
+  # Checkpointing
+  save_freq: 25_000       # Save every 25k steps
+  checkpoint_path: "checkpoints/"
+  
+  # Logging
+  log_interval: 10        # Log every 10 updates
+  tensorboard_log: "logs/tensorboard/"
+  
+  # Evaluation
+  eval_freq: 10_000       # Evaluate every 10k steps
+  n_eval_episodes: 10     # Episodes per evaluation
+  
+  # Curriculum learning
+  # Start very slow, gradually increase
+  curriculum:
+    enabled: true
+    stages:
+      - timesteps: 0
+        target_speed_max: 0.1
+        target_patterns: ["circular"]
+        description: "Stage 1: Very slow circular target"
+      
+      - timesteps: 100_000
+        target_speed_max: 0.15
+        target_patterns: ["circular"]
+        description: "Stage 2: Slow circular target"
+      
+      - timesteps: 250_000
+        target_speed_max: 0.2
+        target_patterns: ["circular", "sinusoidal"]
+        description: "Stage 3: Slightly faster, two patterns"
+      
+      - timesteps: 400_000
+        target_speed_max: 0.3
+        target_patterns: ["circular", "sinusoidal", "random"]
+        description: "Stage 4: Moderate speed, three patterns"
+
+evaluation:
+  # Evaluation settings
+  n_episodes: 20
+  deterministic: true
+  render: false
+  save_video: true
+  video_fps: 30
+  
+  # Metrics to track
+  metrics:
+    - "mean_yaw_error"
+    - "max_yaw_error"
+    - "tracking_percentage"  # % time on target
+    - "response_time"        # Time to acquire target
+    - "episode_reward"
+    - "episode_length"
+
+deployment:
+  # SITL deployment settings
+  mavlink:
+    connection: "tcp:127.0.0.1:5760"
+    system_id: 1
+    component_id: 1
+  
+  # Control settings
+  control_rate: 50.0      # Hz
+  max_yaw_rate: 2.0       # rad/s
+  
+  # Failsafe
+  timeout: 5.0            # Seconds without update before failsafe
+  failsafe_action: "hold" # hold, land, or rtl

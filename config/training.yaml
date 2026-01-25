@@ -1,0 +1,91 @@
+# Reinforcement Learning Training Configuration
+
+algorithm:
+  name: "PPO"
+  
+  # PPO hyperparameters
+  learning_rate: 3.0e-4
+  n_steps: 2048
+  batch_size: 64
+  n_epochs: 10
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  clip_range_vf: null
+  ent_coef: 0.01
+  vf_coef: 0.5
+  max_grad_norm: 0.5
+  
+  # Network architecture
+  policy: "MlpPolicy"
+  policy_kwargs:
+    net_arch:
+      pi: [256, 256]
+      vf: [256, 256]
+    activation_fn: "tanh"
+
+training:
+  total_timesteps: 1_000_000
+  n_envs: 8                  # Parallel environments
+  seed: 42
+  
+  # Checkpointing
+  save_freq: 50_000
+  checkpoint_path: "checkpoints/"
+  
+  # Logging
+  log_interval: 10
+  tensorboard_log: "logs/tensorboard/"
+  
+  # Evaluation during training
+  eval_freq: 25_000
+  n_eval_episodes: 10
+
+reward:
+  # Position tracking
+  position_weight: 1.0
+  position_scale: 2.0        # exp(-scale * error^2)
+  
+  # Velocity penalty
+  velocity_weight: 0.1
+  max_velocity: 5.0
+  
+  # Angular rate penalty
+  angular_rate_weight: 0.05
+  max_angular_rate: 3.14     # rad/s
+  
+  # Action smoothness
+  action_rate_weight: 0.01
+  
+  # Orientation stability
+  orientation_weight: 0.1
+  
+  # Alive bonus
+  alive_bonus: 0.1
+  
+  # Crash penalty
+  crash_penalty: -100.0
+
+termination:
+  # Episode termination conditions
+  max_position_error: 10.0   # meters
+  max_velocity: 20.0         # m/s
+  max_tilt_angle: 1.57       # radians (~90 degrees)
+  min_altitude: -0.1         # meters (crashed into ground)
+  max_altitude: -50.0        # meters (too high, NED)
+
+curriculum:
+  enabled: false
+  stages:
+    - name: "hover"
+      target_distance: 0.0
+      success_threshold: 0.95
+      min_episodes: 1000
+    - name: "small_moves"
+      target_distance: 1.0
+      success_threshold: 0.90
+      min_episodes: 2000
+    - name: "large_moves"
+      target_distance: 5.0
+      success_threshold: 0.85
+      min_episodes: 5000

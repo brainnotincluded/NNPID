@@ -1,0 +1,65 @@
+# NNPID SITL MuJoCo - Default Configuration
+
+simulation:
+  timestep: 0.002          # 500 Hz physics
+  gravity: [0.0, 0.0, -9.81]
+  realtime_factor: 1.0     # 1.0 = realtime, >1 = faster
+  max_episode_steps: 5000  # 10 seconds at 500 Hz
+  
+quadrotor:
+  mass: 2.0                # kg
+  arm_length: 0.25         # meters (center to motor)
+  max_thrust_per_motor: 8.0  # Newtons
+  min_thrust_per_motor: 0.0
+  motor_time_constant: 0.02  # seconds
+  prop_torque_coefficient: 0.01  # Nm per N of thrust
+  
+  # Inertia tensor (diagonal elements)
+  inertia:
+    ixx: 0.029125
+    iyy: 0.029125
+    izz: 0.055225
+    
+  # Motor positions relative to CoM (X-config)
+  motor_positions:
+    - [0.1768, 0.1768, 0.0]   # Front-right (CCW)
+    - [-0.1768, 0.1768, 0.0]  # Front-left (CW)
+    - [-0.1768, -0.1768, 0.0] # Back-left (CCW)
+    - [0.1768, -0.1768, 0.0]  # Back-right (CW)
+    
+  # Motor spin directions (1 = CCW, -1 = CW)
+  motor_directions: [1, -1, 1, -1]
+
+sensors:
+  imu:
+    rate: 500              # Hz
+    gyro_noise_std: 0.001  # rad/s
+    accel_noise_std: 0.01  # m/s^2
+    gyro_bias_std: 0.0001
+    accel_bias_std: 0.001
+    
+  gps:
+    rate: 10               # Hz
+    position_noise_std: 0.5  # meters
+    velocity_noise_std: 0.1  # m/s
+    
+  barometer:
+    rate: 50               # Hz
+    altitude_noise_std: 0.5  # meters
+    
+  magnetometer:
+    rate: 100              # Hz
+    noise_std: 0.01        # Gauss
+
+initial_state:
+  position: [0.0, 0.0, 0.1]  # NED, slightly above ground
+  velocity: [0.0, 0.0, 0.0]
+  attitude: [1.0, 0.0, 0.0, 0.0]  # quaternion (w, x, y, z)
+  angular_velocity: [0.0, 0.0, 0.0]
+
+domain_randomization:
+  enabled: false
+  mass_range: [0.9, 1.1]      # multiplier
+  inertia_range: [0.9, 1.1]
+  motor_thrust_range: [0.95, 1.05]
+  motor_lag_range: [0.8, 1.2]
