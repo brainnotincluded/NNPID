@@ -76,6 +76,25 @@ from .wind import (
     create_strong_wind,
 )
 
+# Visualization (optional, requires OpenCV)
+try:
+    from .visualization import (
+        PerturbationVisualizer,
+        VisualizationConfig,
+        create_default_visualizer,
+        create_full_visualizer,
+        create_minimal_visualizer,
+    )
+
+    _VISUALIZATION_AVAILABLE = True
+except ImportError:
+    _VISUALIZATION_AVAILABLE = False
+    PerturbationVisualizer = None  # type: ignore
+    VisualizationConfig = None  # type: ignore
+    create_default_visualizer = None  # type: ignore
+    create_full_visualizer = None  # type: ignore
+    create_minimal_visualizer = None  # type: ignore
+
 __all__ = [
     # Base classes
     "BasePerturbation",
@@ -134,4 +153,10 @@ __all__ = [
     "create_urban_environment",
     "create_turbulent_environment",
     "create_industrial_environment",
+    # Visualization
+    "PerturbationVisualizer",
+    "VisualizationConfig",
+    "create_default_visualizer",
+    "create_minimal_visualizer",
+    "create_full_visualizer",
 ]
