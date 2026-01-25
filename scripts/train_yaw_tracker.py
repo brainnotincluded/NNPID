@@ -184,13 +184,19 @@ def make_env(
             target_speed_min=env_config.get("target_speed_min", 0.5),
             target_speed_max=env_config.get("target_speed_max", 2.0),
             max_yaw_rate=env_config.get("max_yaw_rate", 2.0),
-            # Stabilizer PD gains
-            altitude_kp=stabilizer.get("altitude_kp", 8.0),
-            altitude_kd=stabilizer.get("altitude_kd", 4.0),
-            attitude_kp=stabilizer.get("attitude_kp", 15.0),
-            attitude_kd=stabilizer.get("attitude_kd", 5.0),
-            yaw_rate_kp=stabilizer.get("yaw_rate_kp", 2.0),
+            # SITL-style PID stabilizer gains
+            altitude_kp=stabilizer.get("altitude_kp", 10.0),
+            altitude_ki=stabilizer.get("altitude_ki", 2.0),
+            altitude_kd=stabilizer.get("altitude_kd", 5.0),
+            attitude_kp=stabilizer.get("attitude_kp", 20.0),
+            attitude_ki=stabilizer.get("attitude_ki", 1.0),
+            attitude_kd=stabilizer.get("attitude_kd", 8.0),
+            yaw_rate_kp=stabilizer.get("yaw_rate_kp", 3.0),
             base_thrust=stabilizer.get("base_thrust", 0.62),
+            # Safety settings
+            safety_tilt_threshold=stabilizer.get("safety_tilt_threshold", 0.5),
+            yaw_authority=stabilizer.get("yaw_authority", 0.03),
+            max_integral=stabilizer.get("max_integral", 0.5),
         )
         
         env = YawTrackingEnv(config=config)

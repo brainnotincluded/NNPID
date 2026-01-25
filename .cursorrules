@@ -59,18 +59,24 @@ from src.utils.rotations import Rotations
 
 ### Motor Layout (X500 Quadrotor)
 
+Coordinate system: X=forward, Y=left, Z=up
+
 ```
-  Front
-  1   2      1=FR (CCW), 2=FL (CW)
-    X        3=BL (CCW), 4=BR (CW)
-  4   3
-  Back
+       Front (X+)
+         ▲
+  M1 ────┼──── M4     M1: Front-Left  CCW (+yaw)
+ (FL)    │    (FR)    M2: Back-Left   CW  (-yaw)
+         │            M3: Back-Right  CCW (+yaw)
+  M2 ────┼──── M3     M4: Front-Right CW  (-yaw)
+ (BL)    │    (BR)
+         ▼
+       Back (X-)
 
 Motor mixing:
-m1 = thrust + roll + pitch + yaw
-m2 = thrust - roll + pitch - yaw
-m3 = thrust - roll - pitch + yaw
-m4 = thrust + roll - pitch - yaw
+m1 = thrust + roll - pitch + yaw   # FL CCW
+m2 = thrust + roll + pitch - yaw   # BL CW
+m3 = thrust - roll + pitch + yaw   # BR CCW
+m4 = thrust - roll - pitch - yaw   # FR CW
 ```
 
 ## Common Tasks

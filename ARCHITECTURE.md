@@ -130,6 +130,31 @@ class YawTrackingEnv(gym.Env):
 
 **Purpose**: PID and NN controllers for drone control.
 
+#### `hover_stabilizer.py` - SITL-Style Stabilizer
+
+```python
+class HoverStabilizer:
+    """Direct PID stabilizer that guarantees stable hover.
+    
+    Architecture (inspired by ArduPilot):
+    - Altitude PID: maintains hover height
+    - Attitude PID: maintains level flight (roll/pitch = 0)
+    - Yaw rate P: follows NN yaw commands
+    
+    Key Features:
+    - Safety mode: ignores yaw if tilt > threshold
+    - Anti-windup on all integrators
+    - Correct motor mixing for MuJoCo coordinate system
+    
+    Config:
+    - altitude_kp/ki/kd: altitude PID gains
+    - attitude_kp/ki/kd: roll/pitch PID gains  
+    - yaw_rate_kp: yaw rate P gain
+    - safety_tilt_threshold: max tilt before yaw is disabled
+    - yaw_authority: max yaw torque
+    """
+```
+
 #### `base_controller.py` - PID Controller
 
 ```python
@@ -269,17 +294,74 @@ curriculum:                   # Curriculum learning
 
 ## MuJoCo Model (`models/quadrotor_x500.xml`)
 
+### Coordinate System
+
+MuJoCo uses **X-forward, Y-left, Z-up** coordinate system (ENU-like).
+
+```
+        Y (left)
+        ^
+        |
+        |
+   -----+-----> X (forward)
+        |
+        |
+        Z (up, out of page)
+```
+
+### Motor Layout
+
+```
+         Front (X+)
+           ▲
+    M1 ◄───┼───► M4
+   (FL)    │    (FR)
+   CCW     │     CW
+           │
+    M2 ◄───┼───► M3
+   (BL)    │    (BR)
+    CW     │    CCW
+           ▼
+         Back (X-)
+```
+
+**IMPORTANT**: Motor positions in the model (Y-left convention):
+
+| Motor | Position            | Location    | Direction |
+|-------|---------------------|-------------|-----------|
+| M1    | (+0.1768, +0.1768)  | Front-Left  | CCW (+yaw)|
+| M2    | (-0.1768, +0.1768)  | Back-Left   | CW (-yaw) |
+| M3    | (-0.1768, -0.1768)  | Back-Right  | CCW (+yaw)|
+| M4    | (+0.1768, -0.1768)  | Front-Right | CW (-yaw) |
+
+### Motor Mixing
+
+The motor mixer converts attitude commands to individual motor thrusts:
+
+```python
+# Correct mixer for MuJoCo X-forward, Y-left coordinate system
+m1 = thrust + roll_torque - pitch_torque + yaw_torque  # Front-Left CCW
+m2 = thrust + roll_torque + pitch_torque - yaw_torque  # Back-Left CW
+m3 = thrust - roll_torque + pitch_torque + yaw_torque  # Back-Right CCW
+m4 = thrust - roll_torque - pitch_torque - yaw_torque  # Front-Right CW
+```
+
+Where:
+- **Positive roll** = right side down → increase right motors (M3, M4)
+- **Positive pitch** = nose down → increase front motors (M1, M4)
+- **Positive yaw** = CCW rotation → increase CCW motors (M1, M3)
+
 ```xml
-<!-- Key elements -->
+<!-- Model structure -->
 <body name="quadrotor">
     <freejoint/>              <!-- 6-DOF motion -->
     <inertial mass="2.0"/>    <!-- 2kg drone -->
     
     <!-- Motors at corners -->
-    <body name="motor1" pos="0.1768 0.1768 0.02">  <!-- Front-Right -->
-    <body name="motor2" pos="-0.1768 0.1768 0.02"> <!-- Front-Left -->
-    <body name="motor3" pos="-0.1768 -0.1768 0.02"><!-- Back-Left -->
-    <body name="motor4" pos="0.1768 -0.1768 0.02"> <!-- Back-Right -->
+    <body name="motor1" pos="0.1768 0.1768 0.02"/>   <!-- Front-Left -->
+    <body name="motor2" pos="-0.1768 0.1768 0.02"/>  <!-- Back-Left -->
+    <body name="motor3" pos="-0.1768 -0.1768 0.02"/> <!-- Back-Right -->
+    <body name="motor4" pos="0.1768 -0.1768 0.02"/>  <!-- Front-Right -->
 </body>
 
 <!-- Target marker (moveable) -->
@@ -287,11 +369,12 @@ curriculum:                   # Curriculum learning
     <geom type="sphere" size="0.15"/>
 </body>
 
-<!-- Motor actuators: thrust + yaw torque -->
+<!-- Motor actuators: thrust (8N max) + yaw torque (0.08 Nm) -->
 <actuator>
-    <general name="motor1" gear="0 0 8 0 0 0.08"/>  <!-- CCW -->
-    <general name="motor2" gear="0 0 8 0 0 -0.08"/> <!-- CW -->
-    ...
+    <general name="motor1" gear="0 0 8 0 0 0.08"/>   <!-- CCW, +yaw -->
+    <general name="motor2" gear="0 0 8 0 0 -0.08"/>  <!-- CW, -yaw -->
+    <general name="motor3" gear="0 0 8 0 0 0.08"/>   <!-- CCW, +yaw -->
+    <general name="motor4" gear="0 0 8 0 0 -0.08"/>  <!-- CW, -yaw -->
 </actuator>
 ```
 
@@ -427,16 +510,33 @@ pytest --cov=src tests/
 
 1. **Drone crashes immediately**
    - Check `base_thrust` in config (should be ~0.62 for 2kg drone)
-   - Verify motor mixing signs in `_compute_stabilized_motors`
+   - Verify motor mixing signs match the coordinate system (see Motor Mixing section)
+   - Ensure HoverStabilizer is using correct gains
 
-2. **Training doesn't converge**
+2. **Drone spins uncontrollably**
+   - Check motor positions match FL/BL/BR/FR layout
+   - Verify yaw signs in motor mixing (CCW motors = +yaw)
+   - Reduce `yaw_authority` in stabilizer config
+
+3. **Training doesn't converge**
    - Reduce target speed in curriculum
    - Increase episode length
    - Check reward scaling
 
-3. **SITL connection fails**
+4. **SITL connection fails**
    - Ensure ArduPilot SITL is running with `--json`
    - Check UDP ports 9002/9003 are free
+
+### Motor Mixing Debug
+
+If the drone behaves unexpectedly, check the motor mixing:
+
+```python
+# Expected behavior for each torque command:
+# roll_torque > 0: left motors increase, right decrease
+# pitch_torque > 0: back motors increase, front decrease  
+# yaw_torque > 0: CCW motors (M1, M3) increase
+```
 
 ### Logging
 

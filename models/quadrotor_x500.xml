@@ -84,7 +84,22 @@
             pos="0.0884 -0.0884 0" euler="0 1.5708 -0.785"
             material="arm_mat" mass="0"/>
       
-      <!-- Motor 1: Front-Right (CCW, positive yaw torque) -->
+      <!-- Motor Layout (X=forward, Y=left, Z=up coordinate system):
+           
+                Front (X+)
+                  ▲
+           M1 ◄──┼──► M4      M1: Front-Left  (+X, +Y) CCW
+          (FL)   │   (FR)     M2: Back-Left   (-X, +Y) CW
+          CCW    │    CW      M3: Back-Right  (-X, -Y) CCW
+                 │            M4: Front-Right (+X, -Y) CW
+           M2 ◄──┼──► M3
+          (BL)   │   (BR)
+           CW    │   CCW
+                 ▼
+               Back (X-)
+      -->
+      
+      <!-- Motor 1: Front-Left (CCW, positive yaw torque) -->
       <body name="motor1" pos="0.1768 0.1768 0.02">
         <geom name="motor1_body" type="cylinder" size="0.02 0.015" 
               material="motor_mat" mass="0"/>
@@ -94,7 +109,7 @@
         <site name="thrust1" pos="0 0 0.025" size="0.01"/>
       </body>
       
-      <!-- Motor 2: Front-Left (CW, negative yaw torque) -->
+      <!-- Motor 2: Back-Left (CW, negative yaw torque) -->
       <body name="motor2" pos="-0.1768 0.1768 0.02">
         <geom name="motor2_body" type="cylinder" size="0.02 0.015" 
               material="motor_mat" mass="0"/>
@@ -103,7 +118,7 @@
         <site name="thrust2" pos="0 0 0.025" size="0.01"/>
       </body>
       
-      <!-- Motor 3: Back-Left (CCW, positive yaw torque) -->
+      <!-- Motor 3: Back-Right (CCW, positive yaw torque) -->
       <body name="motor3" pos="-0.1768 -0.1768 0.02">
         <geom name="motor3_body" type="cylinder" size="0.02 0.015" 
               material="motor_mat" mass="0"/>
@@ -112,7 +127,7 @@
         <site name="thrust3" pos="0 0 0.025" size="0.01"/>
       </body>
       
-      <!-- Motor 4: Back-Right (CW, negative yaw torque) -->
+      <!-- Motor 4: Front-Right (CW, negative yaw torque) -->
       <body name="motor4" pos="0.1768 -0.1768 0.02">
         <geom name="motor4_body" type="cylinder" size="0.02 0.015" 
               material="motor_mat" mass="0"/>
@@ -156,22 +171,24 @@
   </sensor>
   
   <!-- Actuators (motors) -->
-  <!-- Each motor produces thrust force along body Z-axis -->
-  <!-- Control range 0-1 maps to 0 to max_thrust (8N per motor) -->
+  <!-- Each motor produces thrust force along body Z-axis (8N max) -->
+  <!-- and yaw torque around body Z-axis (0.08 Nm max) -->
+  <!-- Control range 0-1 maps to 0 to max_thrust -->
+  <!-- gear = [fx, fy, fz, tx, ty, tz] where fz=thrust, tz=yaw_torque -->
   <actuator>
-    <!-- Motor 1: Front-Right (CCW) -->
+    <!-- Motor 1: Front-Left (CCW) - positive yaw torque -->
     <general name="motor1" site="thrust1" gear="0 0 8 0 0 0.08"
              ctrllimited="true" ctrlrange="0 1" dyntype="filter" dynprm="0.02"/>
     
-    <!-- Motor 2: Front-Left (CW) -->
+    <!-- Motor 2: Back-Left (CW) - negative yaw torque -->
     <general name="motor2" site="thrust2" gear="0 0 8 0 0 -0.08"
              ctrllimited="true" ctrlrange="0 1" dyntype="filter" dynprm="0.02"/>
     
-    <!-- Motor 3: Back-Left (CCW) -->
+    <!-- Motor 3: Back-Right (CCW) - positive yaw torque -->
     <general name="motor3" site="thrust3" gear="0 0 8 0 0 0.08"
              ctrllimited="true" ctrlrange="0 1" dyntype="filter" dynprm="0.02"/>
     
-    <!-- Motor 4: Back-Right (CW) -->
+    <!-- Motor 4: Front-Right (CW) - negative yaw torque -->
     <general name="motor4" site="thrust4" gear="0 0 8 0 0 -0.08"
              ctrllimited="true" ctrlrange="0 1" dyntype="filter" dynprm="0.02"/>
   </actuator>

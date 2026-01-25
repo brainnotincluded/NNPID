@@ -59,14 +59,28 @@ environment:
   max_tilt_angle: 0.8  # radians (~45 degrees)
   max_altitude_error: 2.0  # meters
   
-  # Internal stabilizer gains (aggressive for stability)
+  # SITL-style PID stabilizer (guarantees hover stability)
   stabilizer:
-    altitude_kp: 8.0
-    altitude_kd: 4.0
-    attitude_kp: 15.0
-    attitude_kd: 5.0
-    yaw_rate_kp: 2.0
+    # Altitude PID
+    altitude_kp: 10.0
+    altitude_ki: 2.0
+    altitude_kd: 5.0
+    
+    # Attitude PID (roll/pitch)
+    attitude_kp: 20.0
+    attitude_ki: 1.0
+    attitude_kd: 8.0
+    
+    # Yaw rate control
+    yaw_rate_kp: 3.0
+    
+    # Base thrust
     base_thrust: 0.62
+    
+    # Safety settings
+    safety_tilt_threshold: 0.5   # radians (~28°) - ignore yaw if exceeded
+    yaw_authority: 0.03          # max yaw torque (reduced to prevent destabilization)
+    max_integral: 0.5            # anti-windup limit
 
 algorithm:
   name: "PPO"

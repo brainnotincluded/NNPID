@@ -174,13 +174,13 @@ repos:
   # ==========================================================================
   # Spell checking (optional, uncomment to enable)
   # ==========================================================================
-  # - repo: https://github.com/codespell-project/codespell
-  #   rev: v2.2.6
-  #   hooks:
-  #     - id: codespell
-  #       args:
-  #         - --skip=runs/*,*.zip,*.npz
-  #         - --ignore-words-list=nd,ans,te
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.2.6
+    hooks:
+      - id: codespell
+        args:
+          - --skip=runs/*,*.zip,*.npz
+          - --ignore-words-list=nd,ans,te
 
 # =============================================================================
 # CI configuration
