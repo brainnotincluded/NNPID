@@ -1,0 +1,304 @@
+# =============================================================================
+# Perturbation System Configuration
+# =============================================================================
+# This file configures all perturbation types for realistic drone simulation.
+# Each section can be enabled/disabled independently.
+# Intensity values range from 0.0 (no effect) to 1.0 (full effect).
+# =============================================================================
+
+# Global settings
+enabled: true                    # Master enable for all perturbations
+global_intensity: 1.0            # Global multiplier for all perturbation intensities
+
+# =============================================================================
+# Wind Perturbations
+# =============================================================================
+# Simulates atmospheric wind effects including steady wind, gusts, turbulence,
+# wind shear, and thermals.
+
+wind:
+  enabled: true
+  intensity: 1.0
+  randomize_on_reset: true
+  
+  # Steady wind component
+  steady_wind_enabled: true
+  steady_wind_velocity: 2.0        # Base wind speed (m/s) - light breeze
+  steady_wind_direction: 0.0       # Initial direction (radians, 0 = East)
+  steady_wind_vertical: 0.0        # Vertical component (m/s, positive = up)
+  direction_change_rate: 0.1       # How fast direction changes (rad/s)
+  
+  # Wind gusts
+  gusts_enabled: true
+  gust_probability: 0.02           # Probability per timestep (0-1)
+  gust_min_duration: 0.5           # Minimum gust duration (seconds)
+  gust_max_duration: 2.0           # Maximum gust duration (seconds)
+  gust_min_intensity: 1.0          # Minimum gust strength (m/s)
+  gust_max_intensity: 5.0          # Maximum gust strength (m/s)
+  gust_rise_time: 0.3              # Time to reach full intensity (seconds)
+  gust_fall_time: 0.5              # Time to decay (seconds)
+  
+  # Turbulence
+  turbulence_enabled: true
+  turbulence_intensity: 0.3        # Turbulence strength (0-1)
+  turbulence_frequency: 2.0        # Fluctuation frequency (Hz)
+  turbulence_type: gaussian        # Type: gaussian, perlin, or dryden
+  
+  # Wind shear (altitude-dependent wind)
+  shear_enabled: false
+  shear_ground_velocity: 0.0       # Wind speed at ground (m/s)
+  shear_gradient: 0.5              # Speed increase per meter altitude (m/s/m)
+  shear_reference_height: 10.0     # Reference height for calculations (m)
+  
+  # Thermals (rising air columns)
+  thermals_enabled: false
+  thermal_probability: 0.01        # Probability of entering thermal
+  thermal_radius: 5.0              # Thermal radius (m)
+  thermal_strength: 2.0            # Updraft velocity (m/s)
+  thermal_height_min: 0.5          # Minimum height for thermals (m)
+  thermal_height_max: 50.0         # Maximum height for thermals (m)
+
+# =============================================================================
+# Delay Perturbations
+# =============================================================================
+# Simulates latency in sensors, actuators, and communication channels.
+
+delays:
+  enabled: true
+  intensity: 1.0
+  randomize_on_reset: true
+  
+  # Sensor delays (milliseconds)
+  imu_delay: 2.0                   # IMU (gyro/accel) delay (ms)
+  gps_delay: 100.0                 # GPS delay (ms) - typically high
+  barometer_delay: 20.0            # Barometer delay (ms)
+  magnetometer_delay: 10.0         # Magnetometer delay (ms)
+  
+  # Actuator delays
+  motor_delay: 5.0                 # Motor command delay (ms)
+  motor_time_constant: 20.0        # Motor response time constant (ms)
+  
+  # Communication delays
+  command_delay: 10.0              # Command channel delay (ms)
+  telemetry_delay: 50.0            # Telemetry channel delay (ms)
+  
+  # Jitter (random delay variation)
+  jitter_enabled: true
+  jitter_base: 1.0                 # Minimum jitter (ms)
+  jitter_max: 5.0                  # Maximum jitter (ms)
+  jitter_distribution: gaussian    # Distribution: uniform, gaussian, exponential
+  
+  # Sample dropout (lost packets)
+  dropout_enabled: false
+  dropout_probability: 0.01        # Probability of sample loss
+  dropout_max_consecutive: 3       # Maximum consecutive dropped samples
+
+# =============================================================================
+# Sensor Noise Perturbations
+# =============================================================================
+# Simulates sensor imperfections including noise, drift, and failures.
+
+sensor_noise:
+  enabled: true
+  intensity: 1.0
+  randomize_on_reset: true
+  
+  # Gaussian noise standard deviations
+  gyro_noise_std: 0.005            # Gyroscope noise (rad/s)
+  accel_noise_std: 0.05            # Accelerometer noise (m/s^2)
+  position_noise_std: 0.02         # Position sensor noise (m)
+  velocity_noise_std: 0.05         # Velocity sensor noise (m/s)
+  quaternion_noise_std: 0.001      # Quaternion component noise
+  
+  # Sensor drift (bias random walk)
+  drift_enabled: true
+  gyro_bias_drift: 0.0001          # Gyro bias drift rate (rad/s per sqrt(s))
+  accel_bias_drift: 0.001          # Accel bias drift rate (m/s^2 per sqrt(s))
+  
+  # Outliers (spurious readings)
+  outliers_enabled: false
+  outlier_probability: 0.001       # Probability of outlier per sample
+  outlier_magnitude: 10.0          # Outlier magnitude multiplier
+  
+  # GPS signal loss
+  gps_loss_enabled: false
+  gps_loss_probability: 0.001      # Probability of GPS loss
+  gps_loss_min_duration: 1.0       # Minimum loss duration (s)
+  gps_loss_max_duration: 5.0       # Maximum loss duration (s)
+  
+  # Magnetic interference
+  magnetic_interference_enabled: false
+  magnetic_random_probability: 0.01   # Random interference probability
+  magnetic_max_magnitude: 0.5         # Max interference (Gauss)
+  
+  # Temperature effects
+  temperature_enabled: false
+  ambient_temperature: 20.0        # Ambient temperature (Celsius)
+  temperature_coefficient: 0.01    # Sensitivity per degree C
+
+# =============================================================================
+# Physics Perturbations
+# =============================================================================
+# Simulates physical variations in drone properties and environment.
+
+physics:
+  enabled: true
+  intensity: 1.0
+  randomize_on_reset: true
+  
+  # Center of mass offset
+  com_offset_enabled: false
+  com_offset: [0.0, 0.0, 0.0]      # Fixed offset (m) [x, y, z]
+  com_randomize: true              # Randomize offset each reset
+  com_max_offset: 0.02             # Maximum random offset (m)
+  
+  # Motor variation (manufacturing differences)
+  motor_variation_enabled: true
+  motor_thrust_variation: 0.05     # Thrust variation (0.05 = 5%)
+  motor_response_variation: 0.1    # Response time variation (0.1 = 10%)
+  motor_per_motor: true            # Different variation per motor
+  
+  # Motor degradation (wear over time)
+  degradation_enabled: false
+  degradation_rate: 0.0001         # Degradation rate per second
+  degradation_initial: [0.0, 0.0, 0.0, 0.0]  # Initial degradation [m1, m2, m3, m4]
+  degradation_failure_probability: 0.0  # Probability of sudden failure per episode
+  
+  # Mass variation
+  mass_change_enabled: false
+  mass_variation_min: 0.9          # Minimum mass multiplier
+  mass_variation_max: 1.1          # Maximum mass multiplier
+  mass_dynamic_change: false       # Allow mass to change during flight
+  mass_change_rate: 0.0            # Mass change rate (kg/s)
+  
+  # Ground effect (increased thrust near ground)
+  ground_effect_enabled: true
+  ground_effect_height: 0.5        # Height threshold for effect (m)
+  ground_effect_strength: 0.3      # Effect strength (0-1)
+  ground_effect_thrust_mult: 1.2   # Thrust multiplier at ground level
+  
+  # Wall proximity effect
+  proximity_enabled: false
+  proximity_distance: 1.0          # Effect distance from walls (m)
+  proximity_coefficient: 0.1       # Force coefficient
+
+# =============================================================================
+# Aerodynamic Perturbations
+# =============================================================================
+# Simulates aerodynamic effects including drag, blade dynamics, and VRS.
+
+aerodynamics:
+  enabled: true
+  intensity: 1.0
+  randomize_on_reset: true
+  
+  # Air drag
+  drag_enabled: true
+  drag_coefficient: 0.5            # Drag coefficient
+  air_density: 1.225               # Sea-level air density (kg/m^3)
+  reference_area: 0.1              # Reference area for drag (m^2)
+  
+  # Blade flapping (rotor dynamics)
+  blade_flapping_enabled: false
+  flapping_coefficient: 0.01       # Flapping response coefficient
+  
+  # Vortex Ring State (dangerous descent condition)
+  vrs_enabled: false
+  vrs_descent_threshold: 2.0       # Descent rate to trigger VRS (m/s)
+  vrs_intensity: 0.3               # VRS effect intensity (0-1)
+  
+  # Air density variation with altitude/temperature
+  density_variation_enabled: false
+  density_altitude_coeff: 0.00012  # Density decrease per meter
+  density_temperature_coeff: 0.004 # Density change per degree C
+  density_random_variation: 0.02   # Random variation (0.02 = 2%)
+
+# =============================================================================
+# External Force Perturbations
+# =============================================================================
+# Simulates external disturbances like impacts, vibrations, and interference.
+
+external_forces:
+  enabled: false
+  intensity: 1.0
+  randomize_on_reset: true
+  
+  # Random impulses (bumps, collisions)
+  impulses_enabled: false
+  impulse_probability: 0.001       # Probability per timestep
+  impulse_min_interval: 2.0        # Minimum time between impulses (s)
+  impulse_force_min: 0.5           # Minimum impulse force (N)
+  impulse_force_max: 5.0           # Maximum impulse force (N)
+  impulse_torque_min: 0.01         # Minimum impulse torque (Nm)
+  impulse_torque_max: 0.1          # Maximum impulse torque (Nm)
+  impulse_duration: 0.05           # Impulse duration (s)
+  
+  # Periodic disturbance (regular oscillation)
+  periodic_enabled: false
+  periodic_frequency: 1.0          # Oscillation frequency (Hz)
+  periodic_amplitude: 0.5          # Force amplitude (N)
+  periodic_direction: [1.0, 0.0, 0.0]  # Force direction
+  
+  # Vibrations (motor-induced)
+  vibrations_enabled: false
+  vibration_frequencies: [50.0, 100.0]   # Vibration frequencies (Hz)
+  vibration_amplitudes: [0.1, 0.05]      # Vibration amplitudes (N)
+  vibration_motor_coupled: true          # Scale with motor speed
+
+# =============================================================================
+# Preset Configurations
+# =============================================================================
+# These are example presets that can be used as starting points.
+# Uncomment and modify as needed.
+
+# preset: ideal
+# # No perturbations - ideal conditions for baseline testing
+# enabled: false
+
+# preset: light
+# # Light perturbations for initial training
+# global_intensity: 0.3
+# wind:
+#   steady_wind_velocity: 1.0
+#   gusts_enabled: false
+#   turbulence_intensity: 0.1
+
+# preset: moderate
+# # Moderate perturbations for robust training
+# global_intensity: 0.7
+# wind:
+#   steady_wind_velocity: 3.0
+#   gust_max_intensity: 3.0
+#   turbulence_intensity: 0.3
+
+# preset: harsh
+# # Harsh conditions for stress testing
+# global_intensity: 1.0
+# wind:
+#   steady_wind_velocity: 6.0
+#   gust_max_intensity: 8.0
+#   turbulence_intensity: 0.5
+#   shear_enabled: true
+# sensor_noise:
+#   gps_loss_enabled: true
+#   outliers_enabled: true
+# physics:
+#   degradation_enabled: true
+#   mass_change_enabled: true
+
+# preset: realistic_outdoor
+# # Realistic outdoor flying conditions
+# global_intensity: 1.0
+# wind:
+#   steady_wind_velocity: 4.0
+#   gusts_enabled: true
+#   turbulence_enabled: true
+#   thermals_enabled: true
+# sensor_noise:
+#   drift_enabled: true
+# physics:
+#   ground_effect_enabled: true
+#   motor_variation_enabled: true
+# aerodynamics:
+#   drag_enabled: true
+#   vrs_enabled: true

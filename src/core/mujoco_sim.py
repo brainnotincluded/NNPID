@@ -122,6 +122,10 @@ class MuJoCoSimulator:
         
         # Motor command state
         self._motor_commands = np.zeros(4)
+        
+        # External force/torque for perturbations
+        self._external_force = np.zeros(3)
+        self._external_torque = np.zeros(3)
     
     def reset(
         self,
@@ -167,6 +171,11 @@ class MuJoCoSimulator:
         self._motor_commands = np.zeros(4)
         self.data.ctrl[:] = 0.0
         
+        # Reset external forces
+        self._external_force = np.zeros(3)
+        self._external_torque = np.zeros(3)
+        self.data.xfrc_applied[self._body_id] = np.zeros(6)
+        
         # Forward kinematics to update derived quantities
         mujoco.mj_forward(self.model, self.data)
         
@@ -189,6 +198,11 @@ class MuJoCoSimulator:
         # Apply motor commands to actuators
         self.data.ctrl[:4] = motor_commands
         
+        # Apply external forces/torques (from perturbations)
+        # xfrc_applied format: [fx, fy, fz, tx, ty, tz]
+        self.data.xfrc_applied[self._body_id, :3] = self._external_force
+        self.data.xfrc_applied[self._body_id, 3:6] = self._external_torque
+        
         # Step physics
         mujoco.mj_step(self.model, self.data)
         
@@ -210,10 +224,67 @@ class MuJoCoSimulator:
         self._motor_commands = motor_commands.copy()
         self.data.ctrl[:4] = motor_commands
         
+        # Apply external forces during stepping
+        self.data.xfrc_applied[self._body_id, :3] = self._external_force
+        self.data.xfrc_applied[self._body_id, 3:6] = self._external_torque
+        
         for _ in range(n_steps):
             mujoco.mj_step(self.model, self.data)
         
         return self.get_state()
+    
+    def set_external_force(self, force: np.ndarray) -> None:
+        """Set external force to apply to quadrotor.
+        
+        The force is applied in world frame at the body's center of mass.
+        This is useful for simulating wind, collisions, etc.
+        
+        Args:
+            force: Force vector [fx, fy, fz] in Newtons, world frame
+        """
+        self._external_force = np.asarray(force).flatten()[:3].copy()
+    
+    def set_external_torque(self, torque: np.ndarray) -> None:
+        """Set external torque to apply to quadrotor.
+        
+        The torque is applied in body frame.
+        
+        Args:
+            torque: Torque vector [tx, ty, tz] in Newton-meters
+        """
+        self._external_torque = np.asarray(torque).flatten()[:3].copy()
+    
+    def set_external_wrench(self, force: np.ndarray, torque: np.ndarray) -> None:
+        """Set external force and torque simultaneously.
+        
+        Args:
+            force: Force vector [fx, fy, fz] in Newtons, world frame
+            torque: Torque vector [tx, ty, tz] in Newton-meters, body frame
+        """
+        self.set_external_force(force)
+        self.set_external_torque(torque)
+    
+    def clear_external_forces(self) -> None:
+        """Clear all external forces and torques."""
+        self._external_force = np.zeros(3)
+        self._external_torque = np.zeros(3)
+        self.data.xfrc_applied[self._body_id] = np.zeros(6)
+    
+    def get_external_force(self) -> np.ndarray:
+        """Get current external force being applied.
+        
+        Returns:
+            Force vector [fx, fy, fz] in Newtons
+        """
+        return self._external_force.copy()
+    
+    def get_external_torque(self) -> np.ndarray:
+        """Get current external torque being applied.
+        
+        Returns:
+            Torque vector [tx, ty, tz] in Newton-meters
+        """
+        return self._external_torque.copy()
     
     def get_state(self) -> QuadrotorState:
         """Get current quadrotor state.

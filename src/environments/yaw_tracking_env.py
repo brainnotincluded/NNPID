@@ -13,6 +13,7 @@ from gymnasium import spaces
 
 from ..core.mujoco_sim import MuJoCoSimulator, QuadrotorState, create_simulator
 from ..utils.rotations import Rotations
+from ..perturbations import PerturbationManager
 
 
 class TargetPatternType(Enum):
@@ -541,6 +542,11 @@ class YawTrackingConfig:
     attitude_kd: float = 5.0
     yaw_rate_kp: float = 2.0
     base_thrust: float = 0.62  # Hover throttle for 2kg drone with 4x8N motors
+    
+    # Perturbation settings
+    perturbations_enabled: bool = False
+    perturbations_config_path: Optional[str] = None
+    perturbation_intensity: float = 1.0  # Global intensity multiplier (0-1)
 
 
 class YawTrackingEnv(gym.Env):
@@ -571,6 +577,7 @@ class YawTrackingEnv(gym.Env):
         self,
         config: Optional[YawTrackingConfig] = None,
         render_mode: Optional[str] = None,
+        perturbation_manager: Optional[PerturbationManager] = None,
     ):
         super().__init__()
         
@@ -605,6 +612,22 @@ class YawTrackingEnv(gym.Env):
         
         # Rendering
         self._renderer = None
+        
+        # Perturbation system
+        self._perturbation_manager: Optional[PerturbationManager] = perturbation_manager
+        if self._perturbation_manager is None and self.config.perturbations_enabled:
+            # Create from config file if specified
+            if self.config.perturbations_config_path:
+                self._perturbation_manager = PerturbationManager(
+                    config_path=self.config.perturbations_config_path
+                )
+            else:
+                # Create default manager
+                self._perturbation_manager = PerturbationManager()
+        
+        # Set global intensity if manager exists
+        if self._perturbation_manager is not None:
+            self._perturbation_manager.global_intensity = self.config.perturbation_intensity
     
     def _create_target_patterns(self) -> Dict[str, TargetPattern]:
         """Create target pattern instances."""
@@ -778,6 +801,11 @@ class YawTrackingEnv(gym.Env):
         self._time_on_target = 0.0
         self._episode_reward = 0.0
         
+        # Reset perturbation manager
+        if self._perturbation_manager is not None:
+            self._perturbation_manager.reset(seed)
+            self.sim.clear_external_forces()
+        
         # Set initial target marker position
         state = self.sim.get_state()
         target_pos = self._current_pattern.get_position(0.0, state.position)
@@ -807,8 +835,21 @@ class YawTrackingEnv(gym.Env):
         # Get current state
         state = self.sim.get_state()
         
+        # Update perturbations with current state
+        if self._perturbation_manager is not None:
+            self._perturbation_manager.update(self._dt, state)
+            
+            # Apply external forces from perturbations
+            total_force = self._perturbation_manager.get_total_force()
+            total_torque = self._perturbation_manager.get_total_torque()
+            self.sim.set_external_wrench(total_force, total_torque)
+        
         # Compute stabilized motor commands
         motor_cmds = self._compute_stabilized_motors(state, yaw_rate_cmd)
+        
+        # Apply action perturbations (delays, motor effects)
+        if self._perturbation_manager is not None:
+            motor_cmds = self._perturbation_manager.apply_to_action(motor_cmds)
         
         # Step physics
         for _ in range(self._physics_steps_per_control):
@@ -844,8 +885,17 @@ class YawTrackingEnv(gym.Env):
         self._previous_action = float(action[0])
         
         obs = self._get_observation()
+        
+        # Apply observation perturbations (sensor noise, delays)
+        if self._perturbation_manager is not None:
+            obs = self._perturbation_manager.apply_to_observation(obs)
+        
         info = self._get_info()
         info["action_change"] = action_change
+        
+        # Add perturbation info
+        if self._perturbation_manager is not None:
+            info["perturbations"] = self._perturbation_manager.get_info()
         
         if terminated or truncated:
             info["episode_reward"] = self._episode_reward
@@ -1165,6 +1215,66 @@ class YawTrackingEnv(gym.Env):
         if self._renderer is not None:
             del self._renderer
             self._renderer = None
+    
+    # =========================================================================
+    # Perturbation Management Methods
+    # =========================================================================
+    
+    def set_perturbation_manager(self, manager: PerturbationManager) -> None:
+        """Set the perturbation manager.
+        
+        Args:
+            manager: PerturbationManager instance
+        """
+        self._perturbation_manager = manager
+        if manager is not None:
+            manager.global_intensity = self.config.perturbation_intensity
+    
+    def get_perturbation_manager(self) -> Optional[PerturbationManager]:
+        """Get the current perturbation manager.
+        
+        Returns:
+            PerturbationManager or None
+        """
+        return self._perturbation_manager
+    
+    def enable_perturbations(self, enabled: bool = True) -> None:
+        """Enable or disable all perturbations.
+        
+        Args:
+            enabled: Whether to enable perturbations
+        """
+        if self._perturbation_manager is not None:
+            self._perturbation_manager.enabled = enabled
+    
+    def set_perturbation_intensity(self, intensity: float) -> None:
+        """Set global perturbation intensity.
+        
+        Args:
+            intensity: Intensity value (0-1)
+        """
+        if self._perturbation_manager is not None:
+            self._perturbation_manager.global_intensity = intensity
+    
+    def add_perturbation(self, name: str, perturbation) -> None:
+        """Add a perturbation to the environment.
+        
+        Args:
+            name: Unique name for the perturbation
+            perturbation: Perturbation instance
+        """
+        if self._perturbation_manager is None:
+            self._perturbation_manager = PerturbationManager()
+        self._perturbation_manager.add_perturbation(name, perturbation)
+    
+    def remove_perturbation(self, name: str) -> None:
+        """Remove a perturbation from the environment.
+        
+        Args:
+            name: Name of perturbation to remove
+        """
+        if self._perturbation_manager is not None:
+            self._perturbation_manager.remove_perturbation(name)
 
 
 # Register environment
