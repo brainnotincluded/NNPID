@@ -520,6 +520,8 @@ class YawTrackingConfig:
 
     # Action scaling
     max_yaw_rate: float = 2.0  # rad/s
+    action_smoothing: float = 0.3  # Low-pass filter: 0=no smoothing, 1=full smoothing
+    max_action_change: float = 0.5  # Max allowed action change per step
 
     # Observation noise
     yaw_noise: float = 0.01
@@ -537,8 +539,8 @@ class YawTrackingConfig:
     sustained_tracking_bonus: float = 0.3  # Reduced from 0.5 (now continuous)
     sustained_tracking_threshold: float = 0.1  # radians (~6 degrees)
     sustained_tracking_time: float = 0.5  # seconds
-    crash_penalty: float = 10.0
-    alive_bonus: float = 0.05  # Reduced from 0.1 (now conditional)
+    crash_penalty: float = 50.0  # Increased to strongly discourage crashes
+    alive_bonus: float = 0.1  # Increased to reward survival
 
     # Zone thresholds for facing reward
     on_target_threshold: float = 0.1  # 6° - high reward zone
@@ -565,7 +567,7 @@ class YawTrackingConfig:
 
     # Safety settings (SITL-style)
     safety_tilt_threshold: float = 0.5  # radians (~28 degrees) - ignore yaw if exceeded
-    yaw_authority: float = 0.03  # Yaw torque authority (balanced for tracking vs stability)
+    yaw_authority: float = 0.15  # Yaw torque authority (increased for tracking - was 0.03)
     max_integral: float = 0.5  # Anti-windup limit for integral terms
 
     # Perturbation settings
@@ -819,7 +821,9 @@ class YawTrackingEnv(gym.Env):
                 self.config.hover_height,
             ]
         )
-        init_yaw = self._np_random.uniform(-np.pi, np.pi)
+        # Limit initial yaw to ±120° to avoid gimbal lock instability near ±180°
+        # See docs/issues/003-hover-pid-instability.md for details
+        init_yaw = self._np_random.uniform(-2.1, 2.1)  # ±120°
         init_quat = Rotations.euler_to_quaternion(0, 0, init_yaw)
 
         self.sim.reset(
@@ -887,9 +891,25 @@ class YawTrackingEnv(gym.Env):
         Returns:
             (observation, reward, terminated, truncated, info)
         """
-        # Scale action to yaw rate
-        action = np.clip(action, -1, 1)
-        yaw_rate_cmd = float(action[0]) * self.config.max_yaw_rate
+        # Scale action to yaw rate with smoothing
+        raw_action = float(np.clip(action[0], -1, 1))
+
+        # Apply action smoothing (low-pass filter) to prevent jerky control
+        # This helps during exploration when PPO tries random actions
+        if self.config.action_smoothing > 0:
+            # Limit max change per step
+            max_change = self.config.max_action_change
+            action_change = raw_action - self._previous_action
+            action_change = np.clip(action_change, -max_change, max_change)
+            smoothed_action = self._previous_action + action_change
+
+            # Low-pass filter
+            alpha = 1.0 - self.config.action_smoothing
+            smoothed_action = alpha * smoothed_action + self.config.action_smoothing * self._previous_action
+        else:
+            smoothed_action = raw_action
+
+        yaw_rate_cmd = smoothed_action * self.config.max_yaw_rate
 
         # Get current state
         state = self.sim.get_state()
@@ -942,9 +962,9 @@ class YawTrackingEnv(gym.Env):
         reward = self._compute_reward(state, action, terminated)
         self._episode_reward += reward
 
-        # Store action
-        action_change = abs(float(action[0]) - self._previous_action)
-        self._previous_action = float(action[0])
+        # Store smoothed action (used in observation and reward)
+        action_change = abs(smoothed_action - self._previous_action)
+        self._previous_action = smoothed_action
 
         obs = self._get_observation()
         info = self._get_info()
