@@ -14,13 +14,15 @@ This directory documents critical issues encountered during development, their r
 |---|-------|----------|--------|
 | [001](001-yaw-sign-inversion.md) | Yaw Torque Sign Inversion | Critical | Resolved |
 | [002](002-motor-mixing-stability.md) | Motor Mixing Changes Cause Stability Loss | Critical | Documented |
+| [003](003-hover-pid-instability.md) | Hover PID Instability | Critical | Resolved |
 
 ## Quick Diagnostic Guide
 
 ### Drone crashes immediately (step < 30)
 
 1. Check hover stability: `action = [0.0]` should work
-2. If fails → likely motor mixing issue → see [Issue #002](002-motor-mixing-stability.md)
+2. If fails → check PID gains and control frequency → see [Issue #003](003-hover-pid-instability.md)
+3. If fails after PID changes → likely motor mixing issue → see [Issue #002](002-motor-mixing-stability.md)
 
 ### Model doesn't learn / reward decreases
 
