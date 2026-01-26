@@ -7,8 +7,8 @@ environment:
   # Simulation settings
   model: "generic"
   physics_timestep: 0.002  # 500 Hz physics
-  control_frequency: 50.0  # 50 Hz control (NN inference)
-  max_episode_steps: 1000  # 20 seconds per episode
+  control_frequency: 100.0  # 100 Hz control (increased for stability)
+  max_episode_steps: 2000  # 20 seconds per episode at 100Hz
   
   # Hover settings
   hover_height: 1.0
@@ -40,17 +40,33 @@ environment:
   yaw_noise: 0.01
   angular_velocity_noise: 0.01
   
-  # Reward function weights
+  # Reward function weights (v2 - zone-based with shaping)
   rewards:
-    facing_reward_weight: 1.0      # Main reward for facing target
-    facing_reward_scale: 5.0       # exp(-scale * error^2)
-    yaw_rate_penalty_weight: 0.1   # Penalize high yaw rates
-    action_rate_penalty_weight: 0.05  # Penalize jerky control
-    sustained_tracking_bonus: 0.5  # Bonus for sustained tracking
+    # Main facing reward (zone-based)
+    facing_reward_weight: 1.5      # Increased for zone-based rewards
+    facing_reward_scale: 5.0       # exp(-scale * error^2) - kept for v1 compat
+    
+    # NEW: Shaping rewards
+    error_reduction_weight: 0.5    # Reward for reducing error
+    velocity_match_weight: 0.2     # Reward for matching target velocity
+    direction_alignment_bonus: 0.1 # Bonus for turning toward target
+    excess_yaw_rate_penalty: 0.05  # Only penalize excessive yaw rate
+    
+    # Legacy (kept for v1 compat)
+    yaw_rate_penalty_weight: 0.1   # Penalize high yaw rates (v1)
+    
+    # Smoothness and tracking
+    action_rate_penalty_weight: 0.03  # Reduced from 0.05
+    sustained_tracking_bonus: 0.3  # Reduced from 0.5 (now continuous)
     sustained_tracking_threshold: 0.1  # 0.1 rad = ~6 degrees
     sustained_tracking_time: 0.5   # seconds on target for bonus
     crash_penalty: 10.0
-    alive_bonus: 0.1
+    alive_bonus: 0.05              # Reduced from 0.1 (now conditional)
+    
+    # Zone thresholds for facing reward
+    on_target_threshold: 0.1       # 6° - high reward zone
+    close_tracking_threshold: 0.35 # 20° - positive reward zone
+    searching_threshold: 1.57      # 90° - negative reward zone
   
   # Success criteria
   success_threshold: 0.1  # radians (~6 degrees)
@@ -59,27 +75,28 @@ environment:
   max_tilt_angle: 0.8  # radians (~45 degrees)
   max_altitude_error: 2.0  # meters
   
-  # SITL-style PID stabilizer (guarantees hover stability)
+  # SITL-style PID stabilizer (tuned for 100Hz control)
+  # See docs/issues/003-hover-pid-instability.md for tuning details
   stabilizer:
     # Altitude PID
-    altitude_kp: 10.0
-    altitude_ki: 2.0
-    altitude_kd: 5.0
+    altitude_kp: 15.0
+    altitude_ki: 3.0
+    altitude_kd: 8.0
     
-    # Attitude PID (roll/pitch)
-    attitude_kp: 20.0
-    attitude_ki: 1.0
-    attitude_kd: 8.0
+    # Attitude PID (roll/pitch) - TUNED for stability at 100Hz
+    attitude_kp: 15.0   # reduced from 40.0 for stability
+    attitude_ki: 0.5    # reduced from 2.0 to prevent windup
+    attitude_kd: 5.0    # reduced from 15.0 for stability
     
     # Yaw rate control
-    yaw_rate_kp: 3.0
+    yaw_rate_kp: 2.0
     
     # Base thrust
     base_thrust: 0.62
     
     # Safety settings
     safety_tilt_threshold: 0.5   # radians (~28°) - ignore yaw if exceeded
-    yaw_authority: 0.03          # max yaw torque (reduced to prevent destabilization)
+    yaw_authority: 0.03          # max yaw torque (balanced for tracking)
     max_integral: 0.5            # anti-windup limit
 
 algorithm:
@@ -206,7 +223,7 @@ deployment:
     component_id: 1
   
   # Control settings
-  control_rate: 50.0      # Hz
+  control_rate: 100.0     # Hz (matches training)
   max_yaw_rate: 2.0       # rad/s
   
   # Failsafe

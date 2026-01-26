@@ -20,8 +20,13 @@ class HoverStabilizerConfig:
     """Configuration for hover stabilizer.
 
     Tuned for X500 quadrotor model in MuJoCo:
-    - Mass: 2.0 kg
+    - Mass: 2.0 kg (generic) / 1.5 kg (x500)
     - Motor max thrust: 8N each
+
+    IMPORTANT: Requires control_frequency >= 100Hz for stability.
+    Lower frequencies with these gains cause oscillation and crashes.
+
+    See docs/issues/003-hover-pid-instability.md for tuning details.
     """
 
     # Target hover state
@@ -32,11 +37,11 @@ class HoverStabilizerConfig:
     altitude_ki: float = 3.0
     altitude_kd: float = 8.0
 
-    # Attitude PID gains (direct: angle → torque)
-    # Very aggressive for strong stabilization
-    attitude_kp: float = 40.0
-    attitude_ki: float = 2.0
-    attitude_kd: float = 15.0
+    # Attitude PID gains (TUNED for stability at 100-200Hz)
+    # Lower gains prevent oscillation, require higher control frequency
+    attitude_kp: float = 15.0  # was 40.0 - reduced for stability
+    attitude_ki: float = 0.5   # was 2.0 - reduced to prevent windup
+    attitude_kd: float = 5.0   # was 15.0 - reduced for stability
 
     # Yaw rate control
     yaw_rate_kp: float = 2.0
@@ -46,7 +51,7 @@ class HoverStabilizerConfig:
 
     # Safety limits
     safety_tilt_threshold: float = 0.5  # ~28 degrees - ignore yaw above this
-    yaw_authority: float = 0.03  # Max yaw torque
+    yaw_authority: float = 0.03  # Max yaw torque (keeps yaw from destabilizing)
     max_integral: float = 0.5  # Anti-windup limit
 
 
@@ -151,6 +156,10 @@ class HoverStabilizer:
 
         # === YAW RATE CONTROL ===
         # Only P control with reduced authority (NN cannot destabilize drone)
+        # MuJoCo model uses direct torque (not reaction torque):
+        #   - Motor 1,3: positive yaw gear → CCW torque on body
+        #   - Motor 2,4: negative yaw gear → CW torque on body
+        # So positive yaw_torque → increase m1,m3 → CCW body rotation (positive yaw)
         yaw_rate_error = yaw_rate_cmd - omega[2]
         yaw_torque = np.clip(
             cfg.yaw_rate_kp * yaw_rate_error, -cfg.yaw_authority, cfg.yaw_authority

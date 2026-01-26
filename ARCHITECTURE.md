@@ -147,12 +147,14 @@ class HoverStabilizer:
     - Anti-windup on all integrators
     - Correct motor mixing for MuJoCo coordinate system
     
-    Config:
-    - altitude_kp/ki/kd: altitude PID gains
-    - attitude_kp/ki/kd: roll/pitch PID gains  
-    - yaw_rate_kp: yaw rate P gain
-    - safety_tilt_threshold: max tilt before yaw is disabled
-    - yaw_authority: max yaw torque
+    IMPORTANT: Requires control_frequency >= 100Hz for stability.
+    See docs/issues/003-hover-pid-instability.md for details.
+    
+    Tuned Default Gains (for 100Hz):
+    - attitude_kp: 15.0 (reduced from 40.0)
+    - attitude_ki: 0.5 (reduced from 2.0)
+    - attitude_kd: 5.0 (reduced from 15.0)
+    - yaw_authority: 0.03 (balanced for tracking)
     """
 ```
 
@@ -636,17 +638,27 @@ pytest --cov=src tests/
 1. **Drone crashes immediately**
    - Check `base_thrust` in config (should be ~0.62 for 2kg drone)
    - Verify motor mixing signs match the coordinate system (see Motor Mixing section)
-   - Ensure HoverStabilizer is using correct gains
+   - Ensure control_frequency >= 100Hz (50Hz causes instability!)
+   - Check attitude PID gains (Kp=15, Kd=5 for 100Hz)
+   - See docs/issues/003-hover-pid-instability.md
 
 2. **Drone spins uncontrollably**
    - Check motor positions match FL/BL/BR/FR layout
    - Verify yaw signs in motor mixing (CCW motors = +yaw)
    - Reduce `yaw_authority` in stabilizer config
+   - See docs/issues/001-yaw-sign-inversion.md
 
 3. **Training doesn't converge**
    - Reduce target speed in curriculum
    - Increase episode length
    - Check reward scaling
+   - See docs/tickets/001-reward-system-upgrade.md
+
+4. **Hover oscillates or becomes unstable**
+   - Reduce attitude_kp and attitude_kd gains
+   - Increase control_frequency (100-200Hz recommended)
+   - Check max_integral for anti-windup
+   - See docs/issues/003-hover-pid-instability.md
 
 4. **SITL connection fails**
    - Ensure ArduPilot SITL is running with `--json`

@@ -79,41 +79,32 @@ PID команда вычисляется 1 раз и применяется 10 
 
 ## Implementation
 
-### 1. Обновить HoverStabilizerConfig
+**Status: IMPLEMENTED** ✓
+
+### 1. HoverStabilizerConfig updated
 
 ```python
 # src/controllers/hover_stabilizer.py
-@dataclass
-class HoverStabilizerConfig:
-    # Attitude PID gains (REDUCED for stability)
-    attitude_kp: float = 15.0   # was 40.0
-    attitude_ki: float = 0.5    # was 2.0
-    attitude_kd: float = 5.0    # was 15.0
+attitude_kp: float = 15.0   # was 40.0
+attitude_ki: float = 0.5    # was 2.0
+attitude_kd: float = 5.0    # was 15.0
+yaw_authority: float = 0.03  # balanced for tracking
 ```
 
-### 2. Обновить YawTrackingConfig
+### 2. YawTrackingConfig updated
 
 ```python
 # src/environments/yaw_tracking_env.py
-@dataclass
-class YawTrackingConfig:
-    control_frequency: float = 100.0   # was 50.0
-    
-    # Stabilizer gains
-    attitude_kp: float = 15.0   # was 40.0
-    attitude_ki: float = 0.5    # was 2.0
-    attitude_kd: float = 5.0    # was 15.0
+control_frequency: float = 100.0   # was 50.0
+max_episode_steps: int = 2000      # was 1000 (adjusted for 100Hz)
+attitude_kp: float = 15.0          # was 40.0
+attitude_ki: float = 0.5           # was 2.0
+attitude_kd: float = 5.0           # was 15.0
 ```
 
-### 3. Ограничить init_yaw в reset()
+### 3. config/yaw_tracking.yaml updated
 
-```python
-def reset(self, *, seed=None, options=None):
-    # ...
-    # Limit initial yaw to avoid numerical issues near ±180°
-    init_yaw = self._np_random.uniform(-2*np.pi/3, 2*np.pi/3)  # ±120°
-    # ...
-```
+All stabilizer gains and control_frequency updated to match.
 
 ---
 

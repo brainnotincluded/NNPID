@@ -503,8 +503,8 @@ class YawTrackingConfig:
     # Simulation
     model: str = "generic"
     physics_timestep: float = 0.002  # 500 Hz
-    control_frequency: float = 50.0  # 50 Hz control
-    max_episode_steps: int = 1000  # 20 seconds at 50Hz
+    control_frequency: float = 100.0  # 100 Hz control (was 50Hz, increased for stability)
+    max_episode_steps: int = 2000  # 20 seconds at 100Hz
 
     # Hover settings
     hover_height: float = 1.0
@@ -525,16 +525,25 @@ class YawTrackingConfig:
     yaw_noise: float = 0.01
     angular_velocity_noise: float = 0.01
 
-    # Reward weights
-    facing_reward_weight: float = 1.0
-    facing_reward_scale: float = 5.0  # exp(-scale * error^2)
-    yaw_rate_penalty_weight: float = 0.1
-    action_rate_penalty_weight: float = 0.05
-    sustained_tracking_bonus: float = 0.5
+    # Reward weights (v2 - zone-based with shaping)
+    facing_reward_weight: float = 1.5  # Increased for zone-based rewards
+    facing_reward_scale: float = 5.0  # exp(-scale * error^2) - kept for v1 compat
+    error_reduction_weight: float = 0.5  # NEW: reward for reducing error
+    velocity_match_weight: float = 0.2  # NEW: reward for matching target velocity
+    direction_alignment_bonus: float = 0.1  # NEW: bonus for turning toward target
+    excess_yaw_rate_penalty: float = 0.05  # NEW: replaces yaw_rate_penalty_weight
+    yaw_rate_penalty_weight: float = 0.1  # Kept for v1 compat
+    action_rate_penalty_weight: float = 0.03  # Reduced from 0.05
+    sustained_tracking_bonus: float = 0.3  # Reduced from 0.5 (now continuous)
     sustained_tracking_threshold: float = 0.1  # radians (~6 degrees)
     sustained_tracking_time: float = 0.5  # seconds
     crash_penalty: float = 10.0
-    alive_bonus: float = 0.1
+    alive_bonus: float = 0.05  # Reduced from 0.1 (now conditional)
+
+    # Zone thresholds for facing reward
+    on_target_threshold: float = 0.1  # 6° - high reward zone
+    close_tracking_threshold: float = 0.35  # 20° - positive reward zone
+    searching_threshold: float = 1.57  # 90° - negative reward zone
 
     # Success criteria
     success_threshold: float = 0.1  # radians
@@ -543,20 +552,21 @@ class YawTrackingConfig:
     max_tilt_angle: float = 1.0  # radians (~57 degrees)
     max_altitude_error: float = 3.0  # meters
 
-    # Stabilizer PID gains (SITL-style for guaranteed stability)
+    # Stabilizer PID gains (tuned for stability at 100Hz+)
+    # See docs/issues/003-hover-pid-instability.md for details
     altitude_kp: float = 15.0
     altitude_ki: float = 3.0
     altitude_kd: float = 8.0
-    attitude_kp: float = 40.0  # Very aggressive for stability
-    attitude_ki: float = 2.0
-    attitude_kd: float = 15.0
+    attitude_kp: float = 15.0  # was 40.0 - reduced for stability
+    attitude_ki: float = 0.5   # was 2.0 - reduced to prevent windup
+    attitude_kd: float = 5.0   # was 15.0 - reduced for stability
     yaw_rate_kp: float = 2.0
     base_thrust: float = 0.62  # Hover throttle for 2kg drone with 4x8N motors
 
     # Safety settings (SITL-style)
-    safety_tilt_threshold: float = 0.3  # radians (~17 degrees) - ignore yaw if exceeded
-    yaw_authority: float = 0.01  # Very limited yaw torque (cannot destabilize)
-    max_integral: float = 0.3  # Anti-windup limit for integral terms
+    safety_tilt_threshold: float = 0.5  # radians (~28 degrees) - ignore yaw if exceeded
+    yaw_authority: float = 0.03  # Yaw torque authority (balanced for tracking vs stability)
+    max_integral: float = 0.5  # Anti-windup limit for integral terms
 
     # Perturbation settings
     perturbations_enabled: bool = False
@@ -846,6 +856,7 @@ class YawTrackingEnv(gym.Env):
         self._previous_action = 0.0
         self._time_on_target = 0.0
         self._episode_reward = 0.0
+        self._prev_yaw_error = None  # For error reduction reward shaping
 
         # Reset PID integral states
         self._alt_integral = 0.0
@@ -1139,7 +1150,97 @@ class YawTrackingEnv(gym.Env):
         action: np.ndarray,
         terminated: bool,
     ) -> float:
-        """Compute reward."""
+        """Compute improved reward with zone-based facing and shaping.
+
+        Reward components (v2):
+        1. Zone-based facing reward (negative when far from target)
+        2. Error reduction shaping (immediate feedback)
+        3. Velocity matching (encourage matching target speed)
+        4. Direction alignment bonus (turning toward target)
+        5. Excess yaw rate penalty (only penalize excessive rotation)
+        6. Action smoothness penalty
+        7. Continuous tracking bonus (progressive, not binary)
+        8. Conditional alive bonus (only when tracking reasonably)
+        9. Crash penalty
+        """
+        cfg = self.config
+        reward = 0.0
+
+        yaw_error = self._compute_yaw_error(state)
+        yaw_rate = state.angular_velocity[2]
+        target_vel = self._current_pattern.get_angular_velocity()
+        abs_error = abs(yaw_error)
+
+        # 1. Zone-based facing reward (replaces exponential)
+        # Creates clear gradient with NEGATIVE rewards for bad tracking
+        if abs_error < cfg.on_target_threshold:
+            # On target zone (<6°): High reward, peaks at 0
+            facing = 1.0 - 5.0 * abs_error
+        elif abs_error < cfg.close_tracking_threshold:
+            # Close tracking zone (6-20°): Positive but decreasing
+            facing = 0.5 * (
+                1.0
+                - (abs_error - cfg.on_target_threshold)
+                / (cfg.close_tracking_threshold - cfg.on_target_threshold)
+            )
+        elif abs_error < cfg.searching_threshold:
+            # Searching zone (20-90°): NEGATIVE reward - must improve!
+            facing = -0.5 * (abs_error - cfg.close_tracking_threshold)
+        else:
+            # Lost zone (>90°): Strong negative
+            facing = -1.0 - 0.3 * (abs_error - cfg.searching_threshold)
+        reward += cfg.facing_reward_weight * facing
+
+        # 2. Error reduction shaping (immediate feedback for correct actions)
+        if self._prev_yaw_error is not None:
+            error_reduction = abs(self._prev_yaw_error) - abs_error
+            reward += cfg.error_reduction_weight * error_reduction
+        self._prev_yaw_error = yaw_error
+
+        # 3. Velocity matching (encourage matching target speed)
+        velocity_error = abs(target_vel - yaw_rate)
+        velocity_match = np.exp(-3.0 * velocity_error**2)
+        reward += cfg.velocity_match_weight * velocity_match
+
+        # 4. Direction alignment bonus (encourage turning toward target)
+        # Only give bonus when not already on target and turning correctly
+        if abs_error > 0.05 and np.sign(yaw_error) * np.sign(yaw_rate) > 0:
+            reward += cfg.direction_alignment_bonus
+
+        # 5. Excess yaw rate penalty (only penalize EXCESSIVE yaw rate)
+        # Required rate = target velocity + correction for error
+        required_rate = target_vel + 2.0 * yaw_error  # P-gain for error
+        excess = max(0, abs(yaw_rate) - abs(required_rate) - 0.3)  # 0.3 margin
+        reward -= cfg.excess_yaw_rate_penalty * excess**2
+
+        # 6. Action smoothness penalty
+        action_change = abs(float(action[0]) - self._previous_action)
+        reward -= cfg.action_rate_penalty_weight * action_change**2
+
+        # 7. Continuous tracking bonus (progressive instead of binary)
+        tracking_progress = min(1.0, self._time_on_target / cfg.sustained_tracking_time)
+        reward += cfg.sustained_tracking_bonus * np.sqrt(tracking_progress)
+
+        # 8. Conditional alive bonus (only when tracking reasonably)
+        if abs_error < 0.5:  # < 30°
+            reward += cfg.alive_bonus * (1.0 - abs_error / 0.5)
+
+        # 9. Crash penalty
+        if terminated:
+            reward -= cfg.crash_penalty
+
+        return reward
+
+    def _compute_reward_v1(
+        self,
+        state: QuadrotorState,
+        action: np.ndarray,
+        terminated: bool,
+    ) -> float:
+        """Original reward function (v1) for comparison.
+
+        Kept for A/B testing and backward compatibility.
+        """
         cfg = self.config
         reward = 0.0
 
