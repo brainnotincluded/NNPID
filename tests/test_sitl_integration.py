@@ -355,8 +355,8 @@ class TestSetpointEnvironment:
         obs, reward, terminated, truncated, info = env.step(action)
 
         assert obs.shape == (19,)
-        assert isinstance(reward, float)
-        assert isinstance(terminated, bool)
+        assert isinstance(reward, (float, np.floating))
+        assert isinstance(terminated, (bool, np.bool_))
 
         env.close()
 

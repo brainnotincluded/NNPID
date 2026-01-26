@@ -15,6 +15,7 @@ import argparse
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -25,6 +26,7 @@ sys.path.insert(0, str(project_root))
 try:
     from stable_baselines3 import PPO, SAC
     from stable_baselines3.common.base_class import BaseAlgorithm
+    from stable_baselines3.common.vec_env import VecNormalize
 
     SB3_AVAILABLE = True
 except ImportError:
@@ -116,6 +118,7 @@ def evaluate_episode(
     render: bool = False,
     pattern: str | None = None,
     tracking_threshold: float = 0.1,
+    vec_normalize: VecNormalize | None = None,
 ) -> tuple[EpisodeMetrics, list[np.ndarray]]:
     """Run single evaluation episode.
 
@@ -139,18 +142,29 @@ def evaluate_episode(
     action_changes = []
     tracking_times = []
 
-    # Reset
+            # Reset
     options = {"pattern": pattern} if pattern else None
     obs, info = env.reset(options=options)
     metrics.target_pattern = pattern or "random"
+
+    # Normalize initial observation if VecNormalize is available
+    if vec_normalize is not None:
+        obs_normalized = vec_normalize.normalize_obs(obs.reshape(1, -1))
+        obs = np.array(obs_normalized[0], dtype=np.float32)
 
     prev_action = 0.0
     first_tracking_time = None
 
     done = False
     while not done:
+        # Normalize observation if VecNormalize is available
+        obs_normalized = obs
+        if vec_normalize is not None:
+            obs_vec = vec_normalize.normalize_obs(obs.reshape(1, -1))
+            obs_normalized = np.array(obs_vec[0], dtype=np.float32)
+
         # Get action
-        action, _ = model.predict(obs, deterministic=deterministic)
+        action, _ = model.predict(obs_normalized, deterministic=deterministic)
 
         # Step
         obs, reward, terminated, truncated, info = env.step(action)
@@ -189,17 +203,17 @@ def evaluate_episode(
 
     # Compute aggregate metrics
     if yaw_errors:
-        metrics.mean_yaw_error = np.mean(yaw_errors)
-        metrics.max_yaw_error = np.max(yaw_errors)
+        metrics.mean_yaw_error = float(np.mean(yaw_errors))
+        metrics.max_yaw_error = float(np.max(yaw_errors))
 
     if tracking_times:
-        metrics.tracking_percentage = np.mean(tracking_times) * 100
+        metrics.tracking_percentage = float(np.mean(tracking_times) * 100)
 
     if yaw_rates:
-        metrics.mean_yaw_rate = np.mean(yaw_rates)
+        metrics.mean_yaw_rate = float(np.mean(yaw_rates))
 
     if action_changes:
-        metrics.mean_action_change = np.mean(action_changes)
+        metrics.mean_action_change = float(np.mean(action_changes))
 
     metrics.response_time = first_tracking_time if first_tracking_time else float("inf")
 
@@ -207,7 +221,7 @@ def evaluate_episode(
 
 
 def save_video(
-    frames: list[np.ndarray],
+    frames: list[np.ndarray] | list[Any],
     output_path: Path,
     fps: int = 30,
 ) -> None:
@@ -421,24 +435,53 @@ def evaluate(
     if model is None:
         return []
 
-    # Create environment with all patterns enabled
-    config = YawTrackingConfig()
-    # Include all available patterns for evaluation
-    all_patterns = [
-        "circular",
-        "random",
-        "sinusoidal",
-        "step",
-        "figure8",
-        "spiral",
-        "evasive",
-        "lissajous",
-        "multi_frequency",
-    ]
-    config.target_patterns = patterns if patterns else all_patterns
+    # Try to load VecNormalize if available
+    vec_normalize = None
+    model_dir = model_path.parent if model_path.is_file() else model_path
+    vec_norm_path = model_dir.parent / "vec_normalize.pkl"
+    if not vec_norm_path.exists():
+        vec_norm_path = model_dir / "vec_normalize.pkl"
+
+    # Create environment with same config as training
+    config = YawTrackingConfig(
+        target_patterns=["circular"] if patterns is None else patterns,
+        target_speed_min=0.05,
+        target_speed_max=0.1,
+        control_frequency=100.0,
+        action_smoothing=0.3,
+        max_action_change=0.5,
+        yaw_authority=0.20,
+        yaw_rate_kp=5.0,
+    )
+
+    # Include all available patterns for evaluation if patterns not specified
+    if patterns is None:
+        all_patterns = [
+            "circular",
+            "random",
+            "sinusoidal",
+            "step",
+            "figure8",
+            "spiral",
+            "evasive",
+            "lissajous",
+            "multi_frequency",
+        ]
+        config.target_patterns = all_patterns
 
     render_mode = "rgb_array" if render else None
     env = YawTrackingEnv(config=config, render_mode=render_mode)
+
+    # Load VecNormalize if available
+    if vec_norm_path.exists():
+        try:
+            from stable_baselines3.common.env_util import make_vec_env
+            dummy_vec_env = make_vec_env(lambda: YawTrackingEnv(config=config), n_envs=1)
+            vec_normalize = VecNormalize.load(str(vec_norm_path), dummy_vec_env)
+            vec_normalize.training = False
+            print(f"Loaded VecNormalize from {vec_norm_path}")
+        except Exception as e:
+            print(f"Warning: Could not load VecNormalize: {e}")
 
     # Patterns to test
     test_patterns = patterns or all_patterns
@@ -447,8 +490,8 @@ def evaluate(
     print(f"\nEvaluating on patterns: {test_patterns}")
     print(f"Episodes per pattern: {episodes_per_pattern}")
 
-    all_metrics = []
-    all_frames = []
+    all_metrics: list[EpisodeMetrics] = []
+    all_frames: list[np.ndarray] = []
 
     for pattern in test_patterns:
         print(f"\n  Testing {pattern}...")
@@ -456,7 +499,7 @@ def evaluate(
         for ep in range(episodes_per_pattern):
             env.reset(seed=seed + len(all_metrics))
 
-            should_render = render and (len(all_frames) == 0 or save_video_path)
+            should_render = bool(render) and (len(all_frames) == 0 or save_video_path is not None)
 
             metrics, frames = evaluate_episode(
                 env=env,
@@ -464,6 +507,7 @@ def evaluate(
                 deterministic=deterministic,
                 render=should_render,
                 pattern=pattern,
+                vec_normalize=vec_normalize,
             )
 
             all_metrics.append(metrics)
