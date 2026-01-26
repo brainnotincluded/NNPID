@@ -662,7 +662,7 @@ class YawTrackingEnv(gym.Env):
     def _create_target_patterns(self) -> dict[str, TargetPattern]:
         """Create target pattern instances."""
         cfg = self.config
-        patterns = {}
+        patterns: dict[str, TargetPattern] = {}
 
         # Basic patterns
         if "circular" in cfg.target_patterns:
@@ -856,12 +856,10 @@ class YawTrackingEnv(gym.Env):
         self._previous_action = 0.0
         self._time_on_target = 0.0
         self._episode_reward = 0.0
-        self._prev_yaw_error = None  # For error reduction reward shaping
+        self._prev_yaw_error: float | None = None  # For error reduction reward shaping
 
-        # Reset PID integral states
-        self._alt_integral = 0.0
-        self._roll_integral = 0.0
-        self._pitch_integral = 0.0
+        # Reset hover stabilizer
+        self._stabilizer.reset()
 
         # Reset perturbation manager if enabled
         if self._perturbation_manager is not None:
@@ -957,101 +955,6 @@ class YawTrackingEnv(gym.Env):
             info["episode_length"] = self._step_count
 
         return obs, reward, terminated, truncated, info
-
-    def _compute_stabilized_motors(
-        self,
-        state: QuadrotorState,
-        yaw_rate_cmd: float,
-    ) -> np.ndarray:
-        """Compute motor commands with SITL-style PID stabilization.
-
-        Uses full PID control to maintain hover while applying yaw rate command.
-        Key features:
-        - Integral term for drift compensation
-        - Safety mode: ignores yaw if tilt exceeds threshold
-        - Anti-windup on integral terms
-        - Reduced yaw authority to prevent destabilization
-        """
-        cfg = self.config
-        dt = self._dt
-
-        # Get current state
-        roll, pitch, yaw = Rotations.quaternion_to_euler(state.quaternion)
-        omega = state.angular_velocity
-
-        # === SAFETY CHECK ===
-        # If tilting too much, prioritize stabilization over yaw control
-        tilt = np.sqrt(roll**2 + pitch**2)
-        if tilt > cfg.safety_tilt_threshold:
-            yaw_rate_cmd = 0.0  # Ignore NN yaw command, focus on recovery
-
-        # === ALTITUDE PID ===
-        alt_error = cfg.hover_height - state.position[2]
-        alt_rate = -state.velocity[2]
-
-        # Update integral with anti-windup
-        self._alt_integral += alt_error * dt
-        self._alt_integral = np.clip(self._alt_integral, -cfg.max_integral, cfg.max_integral)
-
-        thrust = (
-            cfg.base_thrust
-            + cfg.altitude_kp * alt_error
-            + cfg.altitude_ki * self._alt_integral
-            + cfg.altitude_kd * alt_rate
-        )
-        thrust = np.clip(thrust, 0.3, 0.9)  # Safety limits
-
-        # === ATTITUDE PID (Roll/Pitch) ===
-        # Roll PID
-        roll_error = 0.0 - roll
-        self._roll_integral += roll_error * dt
-        self._roll_integral = np.clip(self._roll_integral, -cfg.max_integral, cfg.max_integral)
-
-        roll_torque = (
-            cfg.attitude_kp * roll_error
-            + cfg.attitude_ki * self._roll_integral
-            - cfg.attitude_kd * omega[0]
-        )
-
-        # Pitch PID
-        pitch_error = 0.0 - pitch
-        self._pitch_integral += pitch_error * dt
-        self._pitch_integral = np.clip(self._pitch_integral, -cfg.max_integral, cfg.max_integral)
-
-        pitch_torque = (
-            cfg.attitude_kp * pitch_error
-            + cfg.attitude_ki * self._pitch_integral
-            - cfg.attitude_kd * omega[1]
-        )
-
-        # Clamp attitude torques (high limits for strong stabilization)
-        roll_torque = np.clip(roll_torque, -0.5, 0.5)
-        pitch_torque = np.clip(pitch_torque, -0.5, 0.5)
-
-        # === YAW RATE CONTROL ===
-        # Only P control with reduced authority (NN cannot destabilize drone)
-        # Note: yaw_torque sign is NEGATED to correct for motor reaction torque:
-        #   - Positive yaw_torque → CCW motors increase → CW body reaction (yaws RIGHT)
-        #   - We want positive yaw_rate_cmd → yaw LEFT, so negate the torque
-        yaw_rate_error = yaw_rate_cmd - omega[2]
-        yaw_torque = np.clip(
-            -cfg.yaw_rate_kp * yaw_rate_error, -cfg.yaw_authority, cfg.yaw_authority
-        )
-
-        # === MOTOR MIXING (X configuration) ===
-        # MuJoCo model uses X=forward, Y=left, Z=up coordinate system
-        # Motor positions:
-        #   Motor 1: (+X, +Y) = Front-Left,  CCW (+yaw torque)
-        #   Motor 2: (-X, +Y) = Back-Left,   CW  (-yaw torque)
-        #   Motor 3: (-X, -Y) = Back-Right,  CCW (+yaw torque)
-        #   Motor 4: (+X, -Y) = Front-Right, CW  (-yaw torque)
-        m1 = thrust + roll_torque - pitch_torque + yaw_torque  # Front-Left CCW
-        m2 = thrust + roll_torque + pitch_torque - yaw_torque  # Back-Left CW
-        m3 = thrust - roll_torque + pitch_torque + yaw_torque  # Back-Right CCW
-        m4 = thrust - roll_torque - pitch_torque - yaw_torque  # Front-Right CW
-
-        motors = np.array([m1, m2, m3, m4])
-        return np.clip(motors, 0, 1)
 
     def _compute_yaw_error(self, state: QuadrotorState) -> float:
         """Compute angle from drone heading to target."""

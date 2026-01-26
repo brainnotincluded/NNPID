@@ -547,9 +547,9 @@ Environment.reset()
     ▼
 ┌──►Environment.step(action)
 │       │
-│       ├── _compute_stabilized_motors(state, yaw_cmd)
+│       ├── HoverStabilizer.compute_motors(state, yaw_cmd, dt)
 │       │       └── PID for altitude, roll, pitch
-│       │       └── NN action for yaw
+│       │       └── NN yaw rate command applied with limited authority
 │       │
 │       ├── sim.step(motor_commands)
 │       │

@@ -100,7 +100,7 @@ class HoverStabilizer:
         cfg = self.config
 
         # Get current state
-        roll, pitch, yaw = Rotations.quaternion_to_euler(state.quaternion)
+        roll, pitch, _yaw = Rotations.quaternion_to_euler(state.quaternion)
         omega = state.angular_velocity
 
         # === SAFETY CHECK ===

@@ -59,9 +59,9 @@ class TestHoverEnv:
         obs, reward, terminated, truncated, info = env.step(action)
 
         assert obs.shape == env.observation_space.shape
-        assert isinstance(reward, (int, float))
-        assert isinstance(terminated, bool)
-        assert isinstance(truncated, bool)
+        assert isinstance(reward, (int, float, np.floating))
+        assert isinstance(terminated, (bool, np.bool_))
+        assert isinstance(truncated, (bool, np.bool_))
         assert isinstance(info, dict)
 
     def test_episode_terminates(self, env):
