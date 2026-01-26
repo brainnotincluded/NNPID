@@ -1019,9 +1019,12 @@ class YawTrackingEnv(gym.Env):
 
         # === YAW RATE CONTROL ===
         # Only P control with reduced authority (NN cannot destabilize drone)
+        # Note: yaw_torque sign is NEGATED to correct for motor reaction torque:
+        #   - Positive yaw_torque → CCW motors increase → CW body reaction (yaws RIGHT)
+        #   - We want positive yaw_rate_cmd → yaw LEFT, so negate the torque
         yaw_rate_error = yaw_rate_cmd - omega[2]
         yaw_torque = np.clip(
-            cfg.yaw_rate_kp * yaw_rate_error, -cfg.yaw_authority, cfg.yaw_authority
+            -cfg.yaw_rate_kp * yaw_rate_error, -cfg.yaw_authority, cfg.yaw_authority
         )
 
         # === MOTOR MIXING (X configuration) ===

@@ -421,16 +421,10 @@ def evaluate(
     if model is None:
         return []
 
-    # Create environment
+    # Create environment with all patterns enabled
     config = YawTrackingConfig()
-    if patterns:
-        config.target_patterns = patterns
-
-    render_mode = "rgb_array" if render else None
-    env = YawTrackingEnv(config=config, render_mode=render_mode)
-
-    # Patterns to test (all available patterns)
-    test_patterns = patterns or [
+    # Include all available patterns for evaluation
+    all_patterns = [
         "circular",
         "random",
         "sinusoidal",
@@ -441,6 +435,13 @@ def evaluate(
         "lissajous",
         "multi_frequency",
     ]
+    config.target_patterns = patterns if patterns else all_patterns
+
+    render_mode = "rgb_array" if render else None
+    env = YawTrackingEnv(config=config, render_mode=render_mode)
+
+    # Patterns to test
+    test_patterns = patterns or all_patterns
     episodes_per_pattern = max(1, n_episodes // len(test_patterns))
 
     print(f"\nEvaluating on patterns: {test_patterns}")
