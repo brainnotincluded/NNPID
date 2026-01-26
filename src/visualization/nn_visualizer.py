@@ -449,7 +449,7 @@ class NNVisualizer:
 
         # Layer labels
         if cfg.show_layer_labels:
-            labels = ["In"] + [f"H{i+1}" for i in range(len(self._layer_sizes) - 2)] + ["Out"]
+            labels = ["In"] + [f"H{i + 1}" for i in range(len(self._layer_sizes) - 2)] + ["Out"]
             for layer_idx, positions in enumerate(node_positions):
                 if positions:
                     label_x = positions[0][0] - 8

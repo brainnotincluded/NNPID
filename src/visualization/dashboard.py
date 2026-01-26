@@ -187,7 +187,7 @@ class TelemetryDashboard:
         ax.set_ylabel("Command")
         colors = ["#e41a1c", "#377eb8", "#4daf4a", "#984ea3"]
         for i in range(4):
-            (self._lines[f"motor_{i}"],) = ax.plot([], [], color=colors[i], label=f"M{i+1}")
+            (self._lines[f"motor_{i}"],) = ax.plot([], [], color=colors[i], label=f"M{i + 1}")
         ax.legend(loc="upper right")
         ax.set_ylim(-0.1, 1.1)
         ax.grid(True, alpha=0.3)
@@ -342,7 +342,7 @@ def create_summary_plot(
         ax = axes[1, 1]
         motors = data["motor_commands"]
         for i in range(min(4, motors.shape[1])):
-            ax.plot(t, motors[:, i], label=f"M{i+1}")
+            ax.plot(t, motors[:, i], label=f"M{i + 1}")
         ax.set_title("Motor Commands")
         ax.set_xlabel("Time (s)")
         ax.set_ylabel("Command")

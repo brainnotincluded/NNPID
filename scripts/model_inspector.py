@@ -179,7 +179,7 @@ def cmd_arch(args):
                 f"    Weight stats: mean={layer['weight_mean']:.4f}, std={layer['weight_std']:.4f}"
             )
             print(f"    Weight range: [{layer['weight_min']:.4f}, {layer['weight_max']:.4f}]")
-            print(f"    Sparsity: {layer['weight_sparsity']*100:.1f}%")
+            print(f"    Sparsity: {layer['weight_sparsity'] * 100:.1f}%")
         else:
             print(f"\n  Layer {layer['index']}: {layer['type']}")
 
@@ -220,7 +220,7 @@ def print_ascii_network(sizes: list[int]):
     labels = [str(s).center(layer_width) for s in sizes]
     print("".join(labels))
 
-    layer_labels = ["Input"] + [f"H{i+1}" for i in range(len(sizes) - 2)] + ["Output"]
+    layer_labels = ["Input"] + [f"H{i + 1}" for i in range(len(sizes) - 2)] + ["Output"]
     layer_labels = [lbl.center(layer_width) for lbl in layer_labels]
     print("".join(layer_labels))
 
@@ -254,7 +254,7 @@ def cmd_weights(args):
 
     if args.layer is not None:
         if args.layer >= len(linear_layers):
-            print(f"Error: Layer {args.layer} not found (max: {len(linear_layers)-1})")
+            print(f"Error: Layer {args.layer} not found (max: {len(linear_layers) - 1})")
             sys.exit(1)
         layers_to_show = [(args.layer, linear_layers[args.layer])]
     else:
@@ -358,7 +358,7 @@ def cmd_activations(args):
             obs, _reward, terminated, truncated, _info = env.step(action)
             done = terminated or truncated
 
-        print(f"  Episode {ep+1}: {len(all_observations)} samples total")
+        print(f"  Episode {ep + 1}: {len(all_observations)} samples total")
 
     env.close()
 
@@ -515,7 +515,7 @@ def cmd_compare(args):
                 print(f"\n  Layer {i}:")
                 print(f"    Mean absolute difference: {np.mean(diff):.6f}")
                 print(f"    Max absolute difference: {np.max(diff):.6f}")
-                print(f"    Correlation: {np.corrcoef(w1.flatten(), w2.flatten())[0,1]:.4f}")
+                print(f"    Correlation: {np.corrcoef(w1.flatten(), w2.flatten())[0, 1]:.4f}")
 
 
 def main():

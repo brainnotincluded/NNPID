@@ -1,0 +1,332 @@
+algorithm:
+  batch_size: 128
+  clip_range: 0.2
+  ent_coef: 0.005
+  gae_lambda: 0.95
+  gamma: 0.99
+  learning_rate: 0.0003
+  max_grad_norm: 0.5
+  n_epochs: 10
+  n_steps: 4096
+  name: PPO
+  policy: MlpPolicy
+  policy_kwargs:
+    activation_fn: tanh
+    net_arch:
+      pi:
+      - 512
+      - 512
+      - 256
+      - 128
+      vf:
+      - 512
+      - 512
+      - 256
+      - 128
+  vf_coef: 0.5
+deployment:
+  control_rate: 50.0
+  failsafe:
+    failsafe_action: hold
+    timeout: 5.0
+  mavlink:
+    component_id: 1
+    connection: tcp:127.0.0.1:5760
+    system_id: 1
+  max_yaw_rate: 2.5
+environment:
+  angular_velocity_noise: 0.02
+  control_frequency: 50.0
+  hover_height: 1.0
+  hover_position:
+  - 0.0
+  - 0.0
+  max_altitude_error: 3.0
+  max_episode_steps: 1500
+  max_tilt_angle: 1.0
+  max_yaw_rate: 2.5
+  model: generic
+  perturbations:
+    communication_delays:
+      enabled: true
+      max_delay_ms: 50
+      packet_loss_rate: 0.02
+    enable_probability: 0.7
+    enabled: true
+    inertia_variations:
+      enabled: true
+      variation_range: 0.15
+    mass_variations:
+      enabled: true
+      variation_range: 0.1
+    motor_failures:
+      enabled: true
+      failure_probability: 0.05
+      partial_failures: true
+    random_enable: true
+    sensor_noise:
+      bias_drift: true
+      enabled: true
+      intensity: 0.4
+    wind:
+      enabled: true
+      gust_probability: 0.3
+      intensity: 0.5
+  physics_timestep: 0.002
+  rewards:
+    action_rate_penalty_weight: 0.05
+    alive_bonus: 0.1
+    crash_penalty: 10.0
+    facing_reward_scale: 5.0
+    facing_reward_weight: 1.0
+    sustained_tracking_bonus: 0.5
+    sustained_tracking_threshold: 0.1
+    sustained_tracking_time: 0.5
+    yaw_rate_penalty_weight: 0.1
+  stabilizer:
+    altitude_kd: 5.0
+    altitude_ki: 2.0
+    altitude_kp: 10.0
+    attitude_kd: 8.0
+    attitude_ki: 1.0
+    attitude_kp: 20.0
+    base_thrust: 0.62
+    max_integral: 0.5
+    safety_tilt_threshold: 0.5
+    yaw_authority: 0.03
+    yaw_rate_kp: 3.0
+  success_threshold: 0.15
+  target_patterns:
+  - circular
+  - random
+  - sinusoidal
+  - step
+  - figure8
+  - spiral
+  - evasive
+  - lissajous
+  - multi_frequency
+  target_radius: 3.0
+  target_speed_max: 1.0
+  target_speed_min: 0.05
+  type: yaw_tracking
+  yaw_noise: 0.02
+evaluation:
+  deterministic: true
+  metrics:
+  - mean_yaw_error
+  - max_yaw_error
+  - tracking_percentage
+  - response_time
+  - episode_reward
+  - episode_length
+  - crash_rate
+  - recovery_time
+  n_episodes: 50
+  render: false
+  save_video: true
+  video_fps: 30
+training:
+  checkpoint_path: checkpoints/mega_training/
+  curriculum:
+    enabled: true
+    stages:
+    - description: 'Stage 1: Basic circular tracking, no perturbations'
+      perturbations:
+        enabled: false
+      target_patterns:
+      - circular
+      target_speed_max: 0.1
+      timesteps: 0
+    - description: 'Stage 2: Add sinusoidal, still clean'
+      perturbations:
+        enabled: false
+      target_patterns:
+      - circular
+      - sinusoidal
+      target_speed_max: 0.15
+      timesteps: 200000
+    - description: 'Stage 3: Figure-8 + light perturbations'
+      perturbations:
+        enabled: true
+        intensity: 0.2
+      target_patterns:
+      - circular
+      - sinusoidal
+      - figure8
+      target_speed_max: 0.2
+      timesteps: 500000
+    - description: 'Stage 4: Lissajous + medium-light perturbations'
+      perturbations:
+        enabled: true
+        intensity: 0.3
+      target_patterns:
+      - circular
+      - sinusoidal
+      - figure8
+      - lissajous
+      target_speed_max: 0.3
+      timesteps: 1000000
+    - description: 'Stage 5: Add spiral pattern'
+      perturbations:
+        enabled: true
+        intensity: 0.4
+      target_patterns:
+      - circular
+      - sinusoidal
+      - figure8
+      - lissajous
+      - spiral
+      target_speed_max: 0.4
+      timesteps: 2000000
+    - description: 'Stage 6: Multi-frequency patterns'
+      perturbations:
+        enabled: true
+        intensity: 0.5
+      target_patterns:
+      - circular
+      - sinusoidal
+      - figure8
+      - lissajous
+      - spiral
+      - multi_frequency
+      target_speed_max: 0.5
+      timesteps: 3000000
+    - description: 'Stage 7: Add random motion'
+      perturbations:
+        enabled: true
+        intensity: 0.6
+      target_patterns:
+      - circular
+      - sinusoidal
+      - figure8
+      - lissajous
+      - spiral
+      - multi_frequency
+      - random
+      target_speed_max: 0.6
+      timesteps: 4000000
+    - description: 'Stage 8: Step changes + stronger perturbations'
+      perturbations:
+        enabled: true
+        intensity: 0.65
+      target_patterns:
+      - circular
+      - sinusoidal
+      - figure8
+      - lissajous
+      - spiral
+      - multi_frequency
+      - random
+      - step
+      target_speed_max: 0.7
+      timesteps: 5000000
+    - description: 'Stage 9: Faster targets, strong perturbations'
+      perturbations:
+        enabled: true
+        intensity: 0.7
+      target_patterns:
+      - circular
+      - sinusoidal
+      - figure8
+      - lissajous
+      - spiral
+      - multi_frequency
+      - random
+      - step
+      target_speed_max: 0.8
+      timesteps: 6000000
+    - description: 'Stage 10: Add evasive maneuvers'
+      perturbations:
+        enabled: true
+        intensity: 0.75
+      target_patterns:
+      - circular
+      - sinusoidal
+      - figure8
+      - lissajous
+      - spiral
+      - multi_frequency
+      - random
+      - step
+      - evasive
+      target_speed_max: 0.9
+      timesteps: 8000000
+    - description: 'Stage 11: Full speed, very strong perturbations'
+      perturbations:
+        enabled: true
+        intensity: 0.8
+      target_patterns:
+      - circular
+      - sinusoidal
+      - figure8
+      - lissajous
+      - spiral
+      - multi_frequency
+      - random
+      - step
+      - evasive
+      target_speed_max: 1.0
+      timesteps: 10000000
+    - description: 'Stage 12: Expert mode - max difficulty'
+      perturbations:
+        enable_probability: 0.8
+        enabled: true
+        intensity: 0.85
+        random_enable: true
+      target_patterns:
+      - circular
+      - sinusoidal
+      - figure8
+      - lissajous
+      - spiral
+      - multi_frequency
+      - random
+      - step
+      - evasive
+      target_speed_max: 1.0
+      timesteps: 12000000
+    - description: 'Stage 13: Near-maximum difficulty'
+      perturbations:
+        enable_probability: 0.9
+        enabled: true
+        intensity: 0.9
+        random_enable: true
+      target_patterns:
+      - circular
+      - sinusoidal
+      - figure8
+      - lissajous
+      - spiral
+      - multi_frequency
+      - random
+      - step
+      - evasive
+      target_speed_max: 1.0
+      timesteps: 15000000
+    - description: 'Stage 14: Maximum difficulty - final refinement'
+      perturbations:
+        enable_probability: 1.0
+        enabled: true
+        intensity: 1.0
+        random_enable: true
+      target_patterns:
+      - circular
+      - sinusoidal
+      - figure8
+      - lissajous
+      - spiral
+      - multi_frequency
+      - random
+      - step
+      - evasive
+      target_speed_max: 1.0
+      timesteps: 18000000
+  eval_freq: 50000
+  log_interval: 5
+  n_envs: 16
+  n_eval_episodes: 20
+  save_freq: 100000
+  seed: 42
+  tensorboard_log: logs/tensorboard_mega/
+  total_timesteps: 20000000

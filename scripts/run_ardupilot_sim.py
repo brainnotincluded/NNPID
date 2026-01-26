@@ -4,13 +4,14 @@ WORKING ArduPilot SITL + MuJoCo
 Based on ArduPilot's pybullet example - continuous tight loop.
 """
 
+import json
 import socket
 import struct
-import json
 import time
-import numpy as np
-import mujoco
+
 import imageio
+import mujoco
+import numpy as np
 from pymavlink import mavutil
 
 print("=" * 60)
@@ -52,7 +53,7 @@ print("[1] MuJoCo ready")
 # UDP socket
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-sock.bind(('', 9002))
+sock.bind(("", 9002))
 sock.settimeout(0.1)
 print("[2] UDP ready on port 9002")
 
@@ -72,7 +73,7 @@ motors_nonzero = 0
 # Connect MAVLink to wake up ArduPilot
 print("[4] Connecting MAVLink on port 5760...")
 try:
-    mav = mavutil.mavlink_connection('tcp:127.0.0.1:5760', autoreconnect=True)
+    mav = mavutil.mavlink_connection("tcp:127.0.0.1:5760", autoreconnect=True)
     hb = mav.wait_heartbeat(timeout=10)
     if hb:
         print(f"    Connected! System {mav.target_system}")
@@ -91,7 +92,7 @@ try:
     while time.time() - start_time < 40:
         try:
             raw, addr = sock.recvfrom(100)
-        except socket.timeout:
+        except TimeoutError:
             time.sleep(0.01)
             continue
 
@@ -99,11 +100,11 @@ try:
             continue
 
         # Parse PWM packet
-        magic, frame_rate, frame_num = struct.unpack('<HHI', raw[:8])
+        magic, frame_rate, frame_num = struct.unpack("<HHI", raw[:8])
         if magic != 18458:
             continue
 
-        pwm = struct.unpack('<16H', raw[8:40])
+        pwm = struct.unpack("<16H", raw[8:40])
         pwm_packets += 1
 
         if not connected:
@@ -121,7 +122,7 @@ try:
         motors = np.array([max(0, (p - 1000) / 1000.0) for p in pwm[:4]])
         if np.sum(motors) > 0.1:
             motors_nonzero += 1
-        
+
         data.ctrl[:] = motors
 
         # Step physics (multiple sub-steps for stability)
@@ -139,9 +140,9 @@ try:
 
         # Quaternion to euler
         w, x, y, z = quat
-        roll = np.arctan2(2*(w*x + y*z), 1 - 2*(x*x + y*y))
-        pitch = np.arcsin(np.clip(2*(w*y - z*x), -1, 1))
-        yaw = np.arctan2(2*(w*z + x*y), 1 - 2*(y*y + z*z))
+        roll = np.arctan2(2 * (w * x + y * z), 1 - 2 * (x * x + y * y))
+        pitch = np.arcsin(np.clip(2 * (w * y - z * x), -1, 1))
+        yaw = np.arctan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
 
         # Convert to NED
         pos_ned = (float(pos[0]), float(-pos[1]), float(-pos[2]))
@@ -152,17 +153,14 @@ try:
         # Sensor packet
         sensor = {
             "timestamp": sim_time,
-            "imu": {
-                "gyro": gyro,
-                "accel_body": (0.0, 0.0, -9.8)
-            },
+            "imu": {"gyro": gyro, "accel_body": (0.0, 0.0, -9.8)},
             "position": pos_ned,
             "velocity": vel_ned,
-            "attitude": attitude
+            "attitude": attitude,
         }
 
         # Send immediately
-        sock.sendto((json.dumps(sensor, separators=(',', ':')) + "\n").encode(), addr)
+        sock.sendto((json.dumps(sensor, separators=(",", ":")) + "\n").encode(), addr)
 
         # Render video
         if pwm_packets % 16 == 0:
@@ -186,7 +184,7 @@ writer.close()
 sock.close()
 
 print(f"\n{'=' * 60}")
-print(f"  Results:")
+print("  Results:")
 print(f"    PWM packets: {pwm_packets}")
 print(f"    Motors non-zero: {motors_nonzero} times")
 print(f"    Max altitude: {max_alt:.2f}m")

@@ -12,10 +12,10 @@ Prerequisites:
 Usage:
     # With trained model
     python scripts/run_yaw_tracker_sitl.py --model runs/yaw_tracking/best_model
-    
+
     # Test without model (uses simple P controller)
     python scripts/run_yaw_tracker_sitl.py --no-model --duration 30
-    
+
     # Custom settings
     python scripts/run_yaw_tracker_sitl.py \\
         --model runs/yaw_tracking/best_model \\
@@ -48,7 +48,7 @@ def main():
         description="Run yaw tracker on ArduPilot SITL",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    
+
     # Model
     parser.add_argument(
         "--model",
@@ -61,7 +61,7 @@ def main():
         action="store_true",
         help="Run without NN model (uses P controller)",
     )
-    
+
     # Connection
     parser.add_argument(
         "--connection",
@@ -69,7 +69,7 @@ def main():
         default="tcp:127.0.0.1:5760",
         help="MAVLink connection string",
     )
-    
+
     # Flight settings
     parser.add_argument(
         "--altitude",
@@ -83,7 +83,7 @@ def main():
         default=60.0,
         help="Test duration (seconds)",
     )
-    
+
     # Target settings
     parser.add_argument(
         "--target-speed",
@@ -104,7 +104,7 @@ def main():
         choices=["circular", "sinusoidal"],
         help="Target motion pattern",
     )
-    
+
     # Control settings
     parser.add_argument(
         "--control-rate",
@@ -118,7 +118,7 @@ def main():
         default=2.0,
         help="Maximum yaw rate (rad/s)",
     )
-    
+
     # Output
     parser.add_argument(
         "--quiet",
@@ -131,9 +131,9 @@ def main():
         default=None,
         help="Save metrics to file",
     )
-    
+
     args = parser.parse_args()
-    
+
     # Validate model
     model_path = None
     if not args.no_model:
@@ -142,7 +142,7 @@ def main():
             print("Train a model first with: python scripts/train_yaw_tracker.py")
             sys.exit(1)
         model_path = args.model
-    
+
     # Create config
     config = YawTrackerSITLConfig(
         connection_string=args.connection,
@@ -152,7 +152,7 @@ def main():
         target_angular_velocity=args.target_speed,
         target_pattern=args.target_pattern,
     )
-    
+
     # Print settings
     print("=" * 60)
     print("  Yaw Tracker SITL Deployment")
@@ -163,59 +163,58 @@ def main():
     print(f"Target speed: {args.target_speed} rad/s")
     print(f"Duration: {args.duration}s")
     print()
-    
+
     # Create tracker
     tracker = YawTrackerSITL(model_path=model_path, config=config)
-    
+
     try:
         # Connect
         print("Connecting to SITL...")
         if not tracker.connect():
             print("Failed to connect")
             sys.exit(1)
-        
+
         # Wait for state
         time.sleep(1)
         state = tracker.get_state()
         print(f"Current mode: {state['mode']}")
         print(f"Armed: {state['armed']}")
-        
+
         # Arm and takeoff
         if not tracker.arm_and_takeoff(altitude=args.altitude):
             print("Failed to arm and takeoff")
             tracker.shutdown()
             sys.exit(1)
-        
+
         # Wait for stabilization
         print("Stabilizing...")
         time.sleep(3)
-        
+
         # Run tracking
         metrics = tracker.run_loop(
             duration=args.duration,
             verbose=not args.quiet,
         )
-        
+
         # Save metrics
         if args.save_metrics:
             import json
-            
+
             # Convert numpy arrays to lists for JSON
             metrics_json = {
-                k: (v.tolist() if hasattr(v, 'tolist') else v)
-                for k, v in metrics.items()
+                k: (v.tolist() if hasattr(v, "tolist") else v) for k, v in metrics.items()
             }
-            
-            with open(args.save_metrics, 'w') as f:
+
+            with open(args.save_metrics, "w") as f:
                 json.dump(metrics_json, f, indent=2)
             print(f"\nSaved metrics to {args.save_metrics}")
-    
+
     except KeyboardInterrupt:
         print("\n\nInterrupted by user")
-    
+
     finally:
         tracker.shutdown()
-    
+
     print("\nDone!")
 
 

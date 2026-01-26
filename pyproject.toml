@@ -118,9 +118,17 @@ select = [
     "SIM",    # flake8-simplify
 ]
 ignore = [
-    "E501",   # line too long (handled by black)
+    "E501",   # line too long (handled by formatter)
+    "E402",   # module level import not at top (needed for sys.path modification)
     "B008",   # function calls in defaults
+    "N803",   # argument name should be lowercase (R for rotation matrix is conventional)
+    "N806",   # variable name should be lowercase (R for rotation matrix is conventional)
+    "SIM108", # use ternary operator (reduces readability for complex cases)
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/*" = ["E402", "F401"]  # Scripts modify sys.path and may have conditional imports
+"tests/*" = ["F401", "B011", "UP035"]  # Tests may have unused imports, asserts, and legacy typing
 
 [tool.ruff.lint.isort]
 known-first-party = ["src"]

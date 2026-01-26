@@ -14,11 +14,10 @@ from __future__ import annotations
 
 import argparse
 import sys
-from pathlib import Path
+from collections.abc import Callable
 from datetime import datetime
-from typing import Optional, Dict, Any, List, Callable
-
-import numpy as np
+from pathlib import Path
+from typing import Any
 
 # Add project root to path
 project_root = Path(__file__).parent.parent
@@ -28,13 +27,14 @@ try:
     from stable_baselines3 import PPO, SAC
     from stable_baselines3.common.callbacks import (
         BaseCallback,
-        EvalCallback,
-        CheckpointCallback,
         CallbackList,
+        CheckpointCallback,
+        EvalCallback,
     )
-    from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv, VecEnv
     from stable_baselines3.common.monitor import Monitor
     from stable_baselines3.common.utils import set_random_seed
+    from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecEnv
+
     SB3_AVAILABLE = True
 except ImportError:
     SB3_AVAILABLE = False
@@ -43,23 +43,23 @@ except ImportError:
 
 import yaml
 
-from src.environments.yaw_tracking_env import YawTrackingEnv, YawTrackingConfig
+from src.environments.yaw_tracking_env import YawTrackingConfig, YawTrackingEnv
 
 
 class CurriculumCallback(BaseCallback):
     """Callback for curriculum learning.
-    
+
     Updates environment parameters based on training progress.
     """
-    
+
     def __init__(
         self,
-        stages: List[Dict[str, Any]],
-        env_update_fn: Callable[[VecEnv, Dict[str, Any]], None],
+        stages: list[dict[str, Any]],
+        env_update_fn: Callable[[VecEnv, dict[str, Any]], None],
         verbose: int = 1,
     ):
         """Initialize curriculum callback.
-        
+
         Args:
             stages: List of curriculum stages with timestep thresholds
             env_update_fn: Function to update environment parameters
@@ -69,7 +69,7 @@ class CurriculumCallback(BaseCallback):
         self.stages = sorted(stages, key=lambda x: x["timesteps"])
         self.env_update_fn = env_update_fn
         self.current_stage = 0
-    
+
     def _on_step(self) -> bool:
         """Check if curriculum should advance."""
         # Check if we should advance to next stage
@@ -79,18 +79,18 @@ class CurriculumCallback(BaseCallback):
         ):
             self.current_stage += 1
             stage = self.stages[self.current_stage]
-            
+
             if self.verbose > 0:
                 desc = stage.get("description", f"Stage {self.current_stage + 1}")
                 print(f"\n[Curriculum] Advancing to: {desc}")
                 print(f"  Target speed max: {stage.get('target_speed_max', 'unchanged')}")
                 print(f"  Patterns: {stage.get('target_patterns', 'unchanged')}")
-            
+
             # Update environment parameters
             self.env_update_fn(self.training_env, stage)
-        
+
         return True
-    
+
     def _on_training_start(self) -> None:
         """Apply initial curriculum stage."""
         if len(self.stages) > 0:
@@ -101,7 +101,7 @@ class CurriculumCallback(BaseCallback):
             self.env_update_fn(self.training_env, stage)
 
 
-def load_config(config_path: Optional[Path]) -> Dict[str, Any]:
+def load_config(config_path: Path | None) -> dict[str, Any]:
     """Load configuration from YAML file."""
     if config_path is None or not config_path.exists():
         # Default configuration
@@ -148,33 +148,34 @@ def load_config(config_path: Optional[Path]) -> Dict[str, Any]:
                 },
             },
         }
-    
+
     with open(config_path) as f:
         return yaml.safe_load(f)
 
 
 def make_env(
-    env_config: Dict[str, Any],
+    env_config: dict[str, Any],
     rank: int,
     seed: int = 0,
 ) -> Callable[[], YawTrackingEnv]:
     """Create environment factory function.
-    
+
     Args:
         env_config: Environment configuration
         rank: Environment rank for seed offset
         seed: Base random seed
-        
+
     Returns:
         Factory function for creating environment
     """
+
     def _init() -> YawTrackingEnv:
         # Get stabilizer gains from config
         stabilizer = env_config.get("stabilizer", {})
-        
+
         # Get perturbation settings
         perturbations = env_config.get("perturbations", {})
-        
+
         # Build config from dict
         config = YawTrackingConfig(
             model=env_config.get("model", "generic"),
@@ -202,20 +203,22 @@ def make_env(
             max_integral=stabilizer.get("max_integral", 0.5),
             # Perturbation settings
             perturbations_enabled=perturbations.get("enabled", False),
-            perturbation_intensity=perturbations.get("intensity", 1.0) if isinstance(perturbations.get("intensity"), (int, float)) else 1.0,
+            perturbation_intensity=perturbations.get("intensity", 1.0)
+            if isinstance(perturbations.get("intensity"), (int, float))
+            else 1.0,
         )
-        
+
         env = YawTrackingEnv(config=config)
         env = Monitor(env)
         env.reset(seed=seed + rank)
         return env
-    
+
     return _init
 
 
-def update_env_curriculum(env: VecEnv, stage: Dict[str, Any]) -> None:
+def update_env_curriculum(env: VecEnv, stage: dict[str, Any]) -> None:
     """Update environment parameters for curriculum stage.
-    
+
     Note: This updates the config that will be used on next reset.
     For VecEnv, we need to set attributes on each sub-environment.
     """
@@ -223,42 +226,42 @@ def update_env_curriculum(env: VecEnv, stage: Dict[str, Any]) -> None:
     target_speed_max = stage.get("target_speed_max")
     target_patterns = stage.get("target_patterns")
     perturbations = stage.get("perturbations")
-    
+
     # Update each sub-environment
     # For SubprocVecEnv, we'd need to use env_method
     # For DummyVecEnv, we can access envs directly
-    if hasattr(env, 'envs'):
+    if hasattr(env, "envs"):
         for sub_env in env.envs:
             # Get the actual environment (unwrap Monitor)
-            actual_env = sub_env.env if hasattr(sub_env, 'env') else sub_env
-            
+            actual_env = sub_env.env if hasattr(sub_env, "env") else sub_env
+
             if target_speed_max is not None:
                 actual_env.config.target_speed_max = target_speed_max
-            
+
             if target_patterns is not None:
                 actual_env.config.target_patterns = target_patterns
                 # Recreate target patterns with new config
                 actual_env._target_patterns = actual_env._create_target_patterns()
-            
+
             # Update perturbations if specified
-            if perturbations is not None and hasattr(actual_env, 'perturbation_manager'):
-                if 'enabled' in perturbations:
-                    actual_env.perturbation_manager.enabled = perturbations['enabled']
-                if 'intensity' in perturbations:
-                    actual_env.perturbation_manager.global_intensity = perturbations['intensity']
+            if perturbations is not None and hasattr(actual_env, "perturbation_manager"):
+                if "enabled" in perturbations:
+                    actual_env.perturbation_manager.enabled = perturbations["enabled"]
+                if "intensity" in perturbations:
+                    actual_env.perturbation_manager.global_intensity = perturbations["intensity"]
 
 
 def train(
-    config_path: Optional[Path] = None,
-    output_dir: Optional[Path] = None,
-    total_timesteps: Optional[int] = None,
-    n_envs: Optional[int] = None,
-    seed: Optional[int] = None,
+    config_path: Path | None = None,
+    output_dir: Path | None = None,
+    total_timesteps: int | None = None,
+    n_envs: int | None = None,
+    seed: int | None = None,
     device: str = "auto",
     verbose: int = 1,
 ) -> None:
     """Train yaw tracking neural network.
-    
+
     Args:
         config_path: Path to config YAML
         output_dir: Output directory for checkpoints and logs
@@ -272,13 +275,13 @@ def train(
         print("Error: stable-baselines3 is required for training")
         print("Install with: pip install stable-baselines3")
         return
-    
+
     # Load configuration
     config = load_config(config_path)
     env_config = config.get("environment", {})
     algo_config = config.get("algorithm", {})
     train_config = config.get("training", {})
-    
+
     # Override from command line
     if total_timesteps is not None:
         train_config["total_timesteps"] = total_timesteps
@@ -286,18 +289,18 @@ def train(
         train_config["n_envs"] = n_envs
     if seed is not None:
         train_config["seed"] = seed
-    
+
     # Setup output directory
     if output_dir is None:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         output_dir = Path(f"runs/yaw_tracking_{timestamp}")
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Save configuration
     with open(output_dir / "config.yaml", "w") as f:
         yaml.dump(config, f, default_flow_style=False)
-    
+
     print("=" * 60)
     print("  Yaw Tracking Neural Network Training")
     print("=" * 60)
@@ -306,43 +309,41 @@ def train(
     print(f"Total timesteps: {train_config.get('total_timesteps', 500_000):,}")
     print(f"Parallel environments: {train_config.get('n_envs', 8)}")
     print()
-    
+
     # Set seed
     seed_value = train_config.get("seed", 42)
     set_random_seed(seed_value)
-    
+
     # Create environments
     n_envs_actual = train_config.get("n_envs", 8)
-    
+
     print(f"Creating {n_envs_actual} parallel environments...")
-    
+
     # Use DummyVecEnv for easier curriculum updates
     # (SubprocVecEnv would require more complex IPC for curriculum)
-    env = DummyVecEnv([
-        make_env(env_config, i, seed_value) 
-        for i in range(n_envs_actual)
-    ])
-    
+    env = DummyVecEnv([make_env(env_config, i, seed_value) for i in range(n_envs_actual)])
+
     # Create evaluation environment
     eval_env = DummyVecEnv([make_env(env_config, 0, seed_value + 1000)])
-    
+
     # Setup algorithm
     algo_name = algo_config.get("name", "PPO").upper()
-    
+
     policy_kwargs = algo_config.get("policy_kwargs", {})
     if "net_arch" in policy_kwargs:
         net_arch = policy_kwargs["net_arch"]
         if isinstance(net_arch, dict):
-            policy_kwargs["net_arch"] = dict(
-                pi=net_arch.get("pi", [64, 64]),
-                vf=net_arch.get("vf", [64, 64]),
-            )
-    
+            policy_kwargs["net_arch"] = {
+                "pi": net_arch.get("pi", [64, 64]),
+                "vf": net_arch.get("vf", [64, 64]),
+            }
+
     # Convert activation_fn string to actual function
     if "activation_fn" in policy_kwargs:
         activation_name = policy_kwargs["activation_fn"]
         if isinstance(activation_name, str):
             import torch.nn as nn
+
             activation_map = {
                 "tanh": nn.Tanh,
                 "relu": nn.ReLU,
@@ -351,10 +352,8 @@ def train(
                 "gelu": nn.GELU,
                 "silu": nn.SiLU,
             }
-            policy_kwargs["activation_fn"] = activation_map.get(
-                activation_name.lower(), nn.Tanh
-            )
-    
+            policy_kwargs["activation_fn"] = activation_map.get(activation_name.lower(), nn.Tanh)
+
     common_params = {
         "policy": algo_config.get("policy", "MlpPolicy"),
         "env": env,
@@ -366,7 +365,7 @@ def train(
         "device": device,
         "policy_kwargs": policy_kwargs if policy_kwargs else None,
     }
-    
+
     if algo_name == "PPO":
         model = PPO(
             **common_params,
@@ -389,12 +388,12 @@ def train(
         )
     else:
         raise ValueError(f"Unknown algorithm: {algo_name}")
-    
+
     print(f"Model created with {sum(p.numel() for p in model.policy.parameters()):,} parameters")
-    
+
     # Setup callbacks
     callbacks = []
-    
+
     # Checkpoint callback
     checkpoint_callback = CheckpointCallback(
         save_freq=max(train_config.get("save_freq", 25_000) // n_envs_actual, 1),
@@ -402,7 +401,7 @@ def train(
         name_prefix="yaw_tracker",
     )
     callbacks.append(checkpoint_callback)
-    
+
     # Evaluation callback
     eval_callback = EvalCallback(
         eval_env,
@@ -413,7 +412,7 @@ def train(
         deterministic=True,
     )
     callbacks.append(eval_callback)
-    
+
     # Curriculum callback
     curriculum_config = train_config.get("curriculum", {})
     if curriculum_config.get("enabled", False):
@@ -426,14 +425,14 @@ def train(
             )
             callbacks.append(curriculum_callback)
             print(f"Curriculum learning enabled with {len(stages)} stages")
-    
+
     callback_list = CallbackList(callbacks)
-    
+
     # Train
     total_steps = train_config.get("total_timesteps", 500_000)
     print(f"\nStarting training for {total_steps:,} timesteps...")
     print("=" * 60)
-    
+
     try:
         model.learn(
             total_timesteps=total_steps,
@@ -443,16 +442,16 @@ def train(
         )
     except KeyboardInterrupt:
         print("\n\nTraining interrupted by user")
-    
+
     # Save final model
     final_path = output_dir / "final_model"
     model.save(str(final_path))
     print(f"\nSaved final model to {final_path}")
-    
+
     # Cleanup
     env.close()
     eval_env.close()
-    
+
     print("\n" + "=" * 60)
     print("  Training Complete!")
     print("=" * 60)
@@ -510,9 +509,9 @@ def main():
         default=1,
         help="Verbosity level",
     )
-    
+
     args = parser.parse_args()
-    
+
     train(
         config_path=args.config,
         output_dir=args.output,

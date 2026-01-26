@@ -7,12 +7,12 @@ This module provides utilities for:
 - Deploying yaw tracking NN to ArduPilot SITL
 """
 
+from .mavlink_client import DroneState, MAVLinkClient
 from .model_export import ModelExporter, export_to_onnx
-from .mavlink_client import MAVLinkClient, DroneState
 from .yaw_tracker_sitl import (
+    TargetState,
     YawTrackerSITL,
     YawTrackerSITLConfig,
-    TargetState,
 )
 
 __all__ = [

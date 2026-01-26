@@ -428,7 +428,7 @@ class MotorIndicator:
             # Value label
             cv2.putText(
                 frame,
-                f"M{i+1}",
+                f"M{i + 1}",
                 (bar_x + 2, y + bar_h + 12),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.3,

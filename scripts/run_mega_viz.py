@@ -179,7 +179,6 @@ def run_visualization(args):
     env = YawTrackingEnv(
         config=env_config,
         render_mode="rgb_array",
-        perturbation_manager=perturbation_manager,
     )
 
     print("\nStarting visualization...")
@@ -201,11 +200,16 @@ def run_visualization(args):
         visualizer.set_recording(True)
         print(f"Recording to {args.record}")
 
-    # Window name
+    # Window name - only create if not recording (headless mode)
     window_name = "NNPID Mega Visualization"
-    if CV2_AVAILABLE:
-        cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
-        cv2.resizeWindow(window_name, args.width, args.height)
+    show_window = CV2_AVAILABLE and not args.record
+    if show_window:
+        try:
+            cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+            cv2.resizeWindow(window_name, args.width, args.height)
+        except cv2.error:
+            print("Warning: Cannot create window (headless mode?), switching to record-only")
+            show_window = False
 
     # Main loop
     episode = 0
@@ -225,13 +229,16 @@ def run_visualization(args):
             print(f"Episode {episode + 1}/{args.episodes}")
 
             while not done and not quit_requested:
-                # Handle pause
-                if paused:
+                # Handle pause (only if window available)
+                if paused and show_window:
                     key = cv2.waitKey(100) & 0xFF
                     if key == ord("p"):
                         paused = False
                     elif key == ord("q"):
                         quit_requested = True
+                    continue
+                elif paused:
+                    time.sleep(0.1)
                     continue
 
                 # Get action
@@ -249,7 +256,7 @@ def run_visualization(args):
 
                 # Get state for visualization
                 state = env.get_state()
-                euler = Rotations.quaternion_to_euler(state.orientation)
+                euler = Rotations.quaternion_to_euler(state.quaternion)
                 roll, pitch, yaw = euler
 
                 # Estimate motor values from action (normalized)
@@ -295,14 +302,14 @@ def run_visualization(args):
                     # Render overlay
                     frame_with_overlay = visualizer.render_overlay(frame)
 
-                    # Convert for display
-                    if CV2_AVAILABLE:
+                    # Write to video (always if recording)
+                    if writer is not None:
+                        writer.append_data(frame_with_overlay)
+
+                    # Display in window (only if available)
+                    if show_window:
                         display_frame = cv2.cvtColor(frame_with_overlay, cv2.COLOR_RGB2BGR)
                         cv2.imshow(window_name, display_frame)
-
-                        # Write to video
-                        if writer is not None:
-                            writer.append_data(frame_with_overlay)
 
                         # Handle keyboard
                         key = cv2.waitKey(1) & 0xFF
@@ -336,7 +343,7 @@ def run_visualization(args):
             writer.close()
             print(f"Video saved to {args.record}")
 
-        if CV2_AVAILABLE:
+        if show_window:
             cv2.destroyAllWindows()
 
     print(f"\nCompleted {episode} episodes, {total_steps} total steps")

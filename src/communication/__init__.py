@@ -1,17 +1,17 @@
 """PX4 SITL communication layer."""
 
+from .lockstep import LockstepController
 from .mavlink_bridge import MAVLinkBridge, MAVLinkConfig
 from .messages import (
-    HILSensorMessage,
-    HILGPSMessage,
-    HILActuatorControls,
-    SetPositionTargetLocalNED,
     CommandLong,
-    SetpointCommand,
-    PX4Mode,
+    HILActuatorControls,
+    HILGPSMessage,
+    HILSensorMessage,
     PositionTargetTypeMask,
+    PX4Mode,
+    SetpointCommand,
+    SetPositionTargetLocalNED,
 )
-from .lockstep import LockstepController
 
 __all__ = [
     "MAVLinkBridge",

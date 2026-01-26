@@ -1211,6 +1211,19 @@ class YawTrackingEnv(gym.Env):
             "is_tracking": abs(yaw_error) < self.config.success_threshold,
         }
 
+    def get_state(self):
+        """Get current quadrotor state from simulator.
+
+        Returns:
+            QuadrotorState with position, velocity, orientation, etc.
+        """
+        return self.sim.get_state()
+
+    @property
+    def dt(self) -> float:
+        """Get control timestep."""
+        return self._dt
+
     def render(self) -> np.ndarray | None:
         """Render the environment with target visualization overlay."""
         if self.render_mode is None:
