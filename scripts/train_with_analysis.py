@@ -371,12 +371,12 @@ def main():
     print("YAW TRACKING TRAINING WITH DETAILED ANALYSIS")
     print("=" * 70)
 
-    # Environment config - start with easy settings
+    # Environment config - start with VERY easy settings for initial learning
     env_config = YawTrackingConfig(
-        # Start with slow targets
-        target_patterns=["circular", "sinusoidal"],
-        target_speed_min=0.2,
-        target_speed_max=0.4,
+        # Start with very slow targets for easier learning
+        target_patterns=["circular"],  # Single simple pattern
+        target_speed_min=0.05,  # Very slow (was 0.2)
+        target_speed_max=0.1,   # Very slow (was 0.4)
         # Optimized stability settings
         control_frequency=100.0,
         max_episode_steps=2000,  # 20 seconds
@@ -387,8 +387,8 @@ def main():
         attitude_kp=15.0,
         attitude_ki=0.5,
         attitude_kd=5.0,
-        yaw_authority=0.15,  # Increased for faster yaw (was 0.03)
-        yaw_rate_kp=3.0,     # Increased from 2.0
+        yaw_authority=0.20,  # Higher for faster yaw (0.6 rad/s achievable)
+        yaw_rate_kp=5.0,     # Higher for better tracking
         # Reward settings (v2)
         facing_reward_weight=1.5,
         error_reduction_weight=0.5,
@@ -415,13 +415,12 @@ def main():
         seed=42,
     )
 
-    # Normalize observations and rewards
+    # Normalize observations only (reward normalization can hide learning signal)
     env = VecNormalize(
         env,
         norm_obs=True,
-        norm_reward=True,
+        norm_reward=False,  # Disabled to preserve reward gradient
         clip_obs=10.0,
-        clip_reward=10.0,
     )
 
     print(f"\nTraining setup:")

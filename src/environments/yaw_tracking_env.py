@@ -567,7 +567,7 @@ class YawTrackingConfig:
 
     # Safety settings (SITL-style)
     safety_tilt_threshold: float = 0.5  # radians (~28 degrees) - ignore yaw if exceeded
-    yaw_authority: float = 0.15  # Yaw torque authority (increased for tracking - was 0.03)
+    yaw_authority: float = 0.20  # Yaw torque authority (allows ~0.6 rad/s yaw)
     max_integral: float = 0.5  # Anti-windup limit for integral terms
 
     # Perturbation settings
