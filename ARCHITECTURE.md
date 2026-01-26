@@ -34,7 +34,8 @@ src/
 ├── communication/  # SITL protocols
 ├── deployment/     # Model deployment
 ├── utils/          # Shared utilities
-└── visualization/  # Rendering & plots
+├── visualization/  # Rendering, HUD & overlays
+└── perturbations/  # Realistic disturbances
 ```
 
 ## Core Modules
@@ -259,6 +260,104 @@ class CoordinateTransforms:
     """
 ```
 
+### 7. `src/visualization/` - Visualization System
+
+**Purpose**: Comprehensive visualization with 3D objects, HUD, and neural network display.
+
+#### Components
+
+```
+visualization/
+├── viewer.py           # MuJoCo viewer wrapper
+├── scene_objects.py    # 3D geometries for scene
+├── nn_visualizer.py    # Neural network display
+├── telemetry_hud.py    # Real-time HUD
+├── mujoco_overlay.py   # Combined overlay system
+└── dashboard.py        # Matplotlib telemetry plots
+```
+
+#### `scene_objects.py` - 3D Scene Objects
+
+```python
+class SceneObjectManager:
+    """Injects 3D geometries into MuJoCo scene.
+    
+    Objects:
+    - WindArrow3D: Directional wind indicator
+    - ForceVectors3D: Force vector visualization
+    - TrajectoryTrail3D: Path history display
+    - TargetBeam3D: Target tracking indicator
+    - VRSDangerZone3D: Vortex ring state warning
+    """
+```
+
+#### `mujoco_overlay.py` - Combined Overlay
+
+```python
+class MegaVisualizer:
+    """Combines all visualization components.
+    
+    Integrates:
+    - SceneObjectManager (3D objects)
+    - NNVisualizer (network diagram)
+    - TelemetryHUD (graphs & gauges)
+    - FrameAnnotator (status bar)
+    
+    Usage:
+        viz = create_full_visualizer()
+        viz.set_model(trained_model)
+        viz.set_perturbation_manager(perturbation_manager)
+        frame = viz.render_overlay(base_frame)
+    """
+```
+
+### 8. `src/perturbations/` - Realistic Perturbations
+
+**Purpose**: Add realistic disturbances for robust controller training.
+
+#### Module Structure
+
+```
+perturbations/
+├── base.py             # Base classes & manager
+├── wind.py             # Wind effects
+├── delays.py           # Sensor/actuator delays
+├── sensor_noise.py     # Sensor perturbations
+├── physics.py          # Physical perturbations
+├── aerodynamics.py     # Aerodynamic effects
+├── external_forces.py  # External disturbances
+└── visualization.py    # Perturbation visual effects
+```
+
+#### `PerturbationManager` - Central Controller
+
+```python
+class PerturbationManager:
+    """Manages all perturbation types.
+    
+    Methods:
+    - load_config(path): Load from YAML
+    - reset(rng): Reset with new random state
+    - update(state, dt): Update perturbations
+    - get_total_force(): Combined external force
+    - apply_to_observation(obs): Add sensor noise
+    - apply_to_action(action): Add actuator delays
+    
+    Config: config/perturbations.yaml
+    """
+```
+
+#### Available Perturbations
+
+| Category | Types |
+|----------|-------|
+| Wind | Steady, Gusts, Turbulence (Dryden), Thermals |
+| Delays | Sensor (IMU/GPS), Actuator, Jitter, Dropout |
+| Sensor Noise | Gaussian, Drift, Outliers, GPS Loss, EMI |
+| Physics | CoM Offset, Motor Variation, Ground Effect |
+| Aerodynamics | Air Drag, Blade Flapping, VRS |
+| External | Impulses, Vibrations, Periodic Forces |
+
 ## Configuration System
 
 ### Config Files (`config/`)
@@ -482,6 +581,32 @@ MAVLink.send_attitude_target()
     │
     ▼
 ArduPilot executes
+```
+
+### `scripts/run_mega_viz.py`
+
+```python
+# Full visualization script flow:
+1. Load trained model (optional)
+2. Load perturbation config (optional)
+3. Create MegaVisualizer
+4. Run environment loop:
+   - Get action from model
+   - Update visualizer with state
+   - Render overlay on frame
+   - Handle keyboard (q=quit, r=reset, p=pause, s=screenshot)
+5. Save video (optional)
+```
+
+### `scripts/model_inspector.py`
+
+```bash
+# CLI commands:
+arch      - Show network architecture
+weights   - Visualize weight matrices
+activations - Analyze activations on test episodes
+stats     - Export model statistics to JSON
+compare   - Compare two models
 ```
 
 ## Testing

@@ -1,0 +1,318 @@
+# Mega Yaw Tracking Training - 20M timesteps with random perturbations
+# Ultra-long training with all trajectory patterns and environmental disturbances
+
+environment:
+  type: "yaw_tracking"
+  
+  # Simulation settings
+  model: "generic"
+  physics_timestep: 0.002  # 500 Hz physics
+  control_frequency: 50.0  # 50 Hz control (NN inference)
+  max_episode_steps: 1500  # 30 seconds per episode (longer for complex scenarios)
+  
+  # Hover settings
+  hover_height: 1.0
+  hover_position: [0.0, 0.0]
+  
+  # All target motion patterns
+  target_patterns:
+    - "circular"
+    - "random"
+    - "sinusoidal"
+    - "step"
+    - "figure8"
+    - "spiral"
+    - "evasive"
+    - "lissajous"
+    - "multi_frequency"
+  target_radius: 3.0  # meters from drone
+  
+  # Target speed range - wider range for mega training
+  target_speed_min: 0.05  # rad/s (very slow)
+  target_speed_max: 1.0   # rad/s (fast)
+  
+  # Action scaling
+  max_yaw_rate: 2.5  # rad/s (increased for faster targets)
+  
+  # Observation noise (realistic sensor noise)
+  yaw_noise: 0.02
+  angular_velocity_noise: 0.02
+  
+  # Reward function weights
+  rewards:
+    facing_reward_weight: 1.0
+    facing_reward_scale: 5.0
+    yaw_rate_penalty_weight: 0.1
+    action_rate_penalty_weight: 0.05
+    sustained_tracking_bonus: 0.5
+    sustained_tracking_threshold: 0.1
+    sustained_tracking_time: 0.5
+    crash_penalty: 10.0
+    alive_bonus: 0.1
+  
+  # Success criteria
+  success_threshold: 0.15  # radians (~8.6 degrees) - slightly relaxed for harder scenarios
+  
+  # Termination conditions (more permissive for perturbations)
+  max_tilt_angle: 1.0  # radians (~57 degrees) - allow more tilt for recovery
+  max_altitude_error: 3.0  # meters
+  
+  # SITL-style PID stabilizer
+  stabilizer:
+    # Altitude PID
+    altitude_kp: 10.0
+    altitude_ki: 2.0
+    altitude_kd: 5.0
+    
+    # Attitude PID (roll/pitch)
+    attitude_kp: 20.0
+    attitude_ki: 1.0
+    attitude_kd: 8.0
+    
+    # Yaw rate control
+    yaw_rate_kp: 3.0
+    
+    # Base thrust
+    base_thrust: 0.62
+    
+    # Safety settings
+    safety_tilt_threshold: 0.5
+    yaw_authority: 0.03
+    max_integral: 0.5
+
+  # Random perturbations for realism
+  perturbations:
+    enabled: true
+    random_enable: true  # Randomly enable/disable perturbations each episode
+    enable_probability: 0.7  # 70% chance of having perturbations in an episode
+    
+    wind:
+      enabled: true
+      intensity: 0.5  # Medium intensity
+      gust_probability: 0.3
+      
+    motor_failures:
+      enabled: true
+      failure_probability: 0.05  # 5% chance per episode
+      partial_failures: true  # Allow partial power loss
+      
+    sensor_noise:
+      enabled: true
+      intensity: 0.4
+      bias_drift: true
+      
+    communication_delays:
+      enabled: true
+      max_delay_ms: 50
+      packet_loss_rate: 0.02
+      
+    inertia_variations:
+      enabled: true
+      variation_range: 0.15  # ±15% variation
+      
+    mass_variations:
+      enabled: true
+      variation_range: 0.1  # ±10% variation (payload changes)
+
+algorithm:
+  name: "PPO"
+  
+  # Learning parameters (tuned for long training)
+  learning_rate: 3.0e-4
+  n_steps: 4096           # More steps per update for stability
+  batch_size: 128         # Larger batches
+  n_epochs: 10
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.005         # Lower entropy for refinement
+  vf_coef: 0.5
+  max_grad_norm: 0.5
+  
+  # Large network for complex patterns + perturbations
+  policy: "MlpPolicy"
+  policy_kwargs:
+    net_arch:
+      pi: [512, 512, 256, 128]  # Deep policy network
+      vf: [512, 512, 256, 128]  # Deep value network
+    activation_fn: "tanh"
+
+training:
+  # MEGA training - 20 million timesteps
+  total_timesteps: 20_000_000
+  
+  # Parallel environments (adjust based on your CPU)
+  n_envs: 16  # More parallel envs for faster training
+  
+  # Random seed
+  seed: 42
+  
+  # Checkpointing (more frequent for long training)
+  save_freq: 100_000      # Save every 100k steps
+  checkpoint_path: "checkpoints/mega_training/"
+  
+  # Logging
+  log_interval: 5         # Log every 5 updates
+  tensorboard_log: "logs/tensorboard_mega/"
+  
+  # Evaluation
+  eval_freq: 50_000       # Evaluate every 50k steps
+  n_eval_episodes: 20     # More episodes for robust evaluation
+  
+  # Extensive curriculum learning
+  curriculum:
+    enabled: true
+    stages:
+      # === PHASE 1: Foundations (0-2M) ===
+      # Build basic tracking skills
+      - timesteps: 0
+        target_speed_max: 0.1
+        target_patterns: ["circular"]
+        perturbations:
+          enabled: false
+        description: "Stage 1: Basic circular tracking, no perturbations"
+      
+      - timesteps: 200_000
+        target_speed_max: 0.15
+        target_patterns: ["circular", "sinusoidal"]
+        perturbations:
+          enabled: false
+        description: "Stage 2: Add sinusoidal, still clean"
+      
+      - timesteps: 500_000
+        target_speed_max: 0.2
+        target_patterns: ["circular", "sinusoidal", "figure8"]
+        perturbations:
+          enabled: true
+          intensity: 0.2  # Light perturbations
+        description: "Stage 3: Figure-8 + light perturbations"
+      
+      - timesteps: 1_000_000
+        target_speed_max: 0.3
+        target_patterns: ["circular", "sinusoidal", "figure8", "lissajous"]
+        perturbations:
+          enabled: true
+          intensity: 0.3
+        description: "Stage 4: Lissajous + medium-light perturbations"
+      
+      # === PHASE 2: Intermediate Complexity (2M-6M) ===
+      - timesteps: 2_000_000
+        target_speed_max: 0.4
+        target_patterns: ["circular", "sinusoidal", "figure8", "lissajous", "spiral"]
+        perturbations:
+          enabled: true
+          intensity: 0.4
+        description: "Stage 5: Add spiral pattern"
+      
+      - timesteps: 3_000_000
+        target_speed_max: 0.5
+        target_patterns: ["circular", "sinusoidal", "figure8", "lissajous", "spiral", "multi_frequency"]
+        perturbations:
+          enabled: true
+          intensity: 0.5
+        description: "Stage 6: Multi-frequency patterns"
+      
+      - timesteps: 4_000_000
+        target_speed_max: 0.6
+        target_patterns: ["circular", "sinusoidal", "figure8", "lissajous", "spiral", "multi_frequency", "random"]
+        perturbations:
+          enabled: true
+          intensity: 0.6
+        description: "Stage 7: Add random motion"
+      
+      - timesteps: 5_000_000
+        target_speed_max: 0.7
+        target_patterns: ["circular", "sinusoidal", "figure8", "lissajous", "spiral", "multi_frequency", "random", "step"]
+        perturbations:
+          enabled: true
+          intensity: 0.65
+        description: "Stage 8: Step changes + stronger perturbations"
+      
+      # === PHASE 3: Advanced Training (6M-12M) ===
+      - timesteps: 6_000_000
+        target_speed_max: 0.8
+        target_patterns: ["circular", "sinusoidal", "figure8", "lissajous", "spiral", "multi_frequency", "random", "step"]
+        perturbations:
+          enabled: true
+          intensity: 0.7
+        description: "Stage 9: Faster targets, strong perturbations"
+      
+      - timesteps: 8_000_000
+        target_speed_max: 0.9
+        target_patterns: ["circular", "sinusoidal", "figure8", "lissajous", "spiral", "multi_frequency", "random", "step", "evasive"]
+        perturbations:
+          enabled: true
+          intensity: 0.75
+        description: "Stage 10: Add evasive maneuvers"
+      
+      - timesteps: 10_000_000
+        target_speed_max: 1.0
+        target_patterns: ["circular", "sinusoidal", "figure8", "lissajous", "spiral", "multi_frequency", "random", "step", "evasive"]
+        perturbations:
+          enabled: true
+          intensity: 0.8
+        description: "Stage 11: Full speed, very strong perturbations"
+      
+      # === PHASE 4: Expert Refinement (12M-20M) ===
+      # Train on hardest scenarios for extended period
+      - timesteps: 12_000_000
+        target_speed_max: 1.0
+        target_patterns: ["circular", "sinusoidal", "figure8", "lissajous", "spiral", "multi_frequency", "random", "step", "evasive"]
+        perturbations:
+          enabled: true
+          intensity: 0.85
+          random_enable: true
+          enable_probability: 0.8
+        description: "Stage 12: Expert mode - max difficulty"
+      
+      - timesteps: 15_000_000
+        target_speed_max: 1.0
+        target_patterns: ["circular", "sinusoidal", "figure8", "lissajous", "spiral", "multi_frequency", "random", "step", "evasive"]
+        perturbations:
+          enabled: true
+          intensity: 0.9
+          random_enable: true
+          enable_probability: 0.9
+        description: "Stage 13: Near-maximum difficulty"
+      
+      - timesteps: 18_000_000
+        target_speed_max: 1.0
+        target_patterns: ["circular", "sinusoidal", "figure8", "lissajous", "spiral", "multi_frequency", "random", "step", "evasive"]
+        perturbations:
+          enabled: true
+          intensity: 1.0
+          random_enable: true
+          enable_probability: 1.0
+        description: "Stage 14: Maximum difficulty - final refinement"
+
+evaluation:
+  # Comprehensive evaluation
+  n_episodes: 50  # More episodes for statistical significance
+  deterministic: true
+  render: false
+  save_video: true
+  video_fps: 30
+  
+  # Metrics to track
+  metrics:
+    - "mean_yaw_error"
+    - "max_yaw_error"
+    - "tracking_percentage"
+    - "response_time"
+    - "episode_reward"
+    - "episode_length"
+    - "crash_rate"
+    - "recovery_time"
+
+deployment:
+  mavlink:
+    connection: "tcp:127.0.0.1:5760"
+    system_id: 1
+    component_id: 1
+  
+  control_rate: 50.0
+  max_yaw_rate: 2.5
+  
+  failsafe:
+    timeout: 5.0
+    failsafe_action: "hold"

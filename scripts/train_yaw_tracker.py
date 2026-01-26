@@ -172,6 +172,9 @@ def make_env(
         # Get stabilizer gains from config
         stabilizer = env_config.get("stabilizer", {})
         
+        # Get perturbation settings
+        perturbations = env_config.get("perturbations", {})
+        
         # Build config from dict
         config = YawTrackingConfig(
             model=env_config.get("model", "generic"),
@@ -197,6 +200,9 @@ def make_env(
             safety_tilt_threshold=stabilizer.get("safety_tilt_threshold", 0.5),
             yaw_authority=stabilizer.get("yaw_authority", 0.03),
             max_integral=stabilizer.get("max_integral", 0.5),
+            # Perturbation settings
+            perturbations_enabled=perturbations.get("enabled", False),
+            perturbation_intensity=perturbations.get("intensity", 1.0) if isinstance(perturbations.get("intensity"), (int, float)) else 1.0,
         )
         
         env = YawTrackingEnv(config=config)
@@ -216,6 +222,7 @@ def update_env_curriculum(env: VecEnv, stage: Dict[str, Any]) -> None:
     # Get attributes to update
     target_speed_max = stage.get("target_speed_max")
     target_patterns = stage.get("target_patterns")
+    perturbations = stage.get("perturbations")
     
     # Update each sub-environment
     # For SubprocVecEnv, we'd need to use env_method
@@ -232,6 +239,13 @@ def update_env_curriculum(env: VecEnv, stage: Dict[str, Any]) -> None:
                 actual_env.config.target_patterns = target_patterns
                 # Recreate target patterns with new config
                 actual_env._target_patterns = actual_env._create_target_patterns()
+            
+            # Update perturbations if specified
+            if perturbations is not None and hasattr(actual_env, 'perturbation_manager'):
+                if 'enabled' in perturbations:
+                    actual_env.perturbation_manager.enabled = perturbations['enabled']
+                if 'intensity' in perturbations:
+                    actual_env.perturbation_manager.global_intensity = perturbations['intensity']
 
 
 def train(

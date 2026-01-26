@@ -63,11 +63,21 @@ NNPID/
 │   ├── utils/             # Utilities
 │   │   ├── rotations.py   # Quaternion math
 │   │   └── transforms.py  # Coordinate transforms
-│   └── visualization/     # Visualization tools
-│       └── viewer.py      # MuJoCo viewer
+│   ├── visualization/     # Visualization tools
+│   │   ├── viewer.py              # MuJoCo viewer
+│   │   ├── scene_objects.py       # 3D scene objects
+│   │   ├── nn_visualizer.py       # Neural network visualizer
+│   │   ├── telemetry_hud.py       # Real-time HUD
+│   │   └── mujoco_overlay.py      # Combined overlay system
+│   └── perturbations/     # Realistic perturbations
+│       ├── wind.py                # Wind effects
+│       ├── delays.py              # Sensor/actuator delays
+│       └── ...                    # Other perturbations
 ├── scripts/               # Executable scripts
 │   ├── train_yaw_tracker.py       # Train yaw tracking
 │   ├── evaluate_yaw_tracker.py    # Evaluate models
+│   ├── run_mega_viz.py            # Full visualization
+│   ├── model_inspector.py         # CLI model analysis
 │   ├── run_ardupilot_sim.py       # Run with ArduPilot SITL
 │   └── run_yaw_tracker_sitl.py    # Deploy NN to SITL
 ├── models/                # MuJoCo XML models
@@ -179,6 +189,64 @@ training:
   policy_kwargs:
     net_arch: [64, 64]
 ```
+
+## Visualization
+
+### Mega Visualization System
+
+Run full visualization with all effects:
+
+```bash
+# Run with trained model
+python scripts/run_mega_viz.py --model runs/best_model.zip
+
+# With perturbations and video recording
+python scripts/run_mega_viz.py \
+    --model runs/best_model.zip \
+    --perturbations config/perturbations.yaml \
+    --record output.mp4
+```
+
+Features:
+- **3D Scene Objects**: Wind arrows, force vectors, trajectory trails, VRS danger zones
+- **Neural Network Visualizer**: Real-time activation display
+- **Telemetry HUD**: Roll/pitch/yaw graphs, motor indicators, attitude display
+- **Perturbation Effects**: Visual wind, ground effects, sensor delays
+
+### Model Inspector CLI
+
+Analyze trained models without running simulation:
+
+```bash
+# Show architecture with ASCII diagram
+python scripts/model_inspector.py arch runs/model.zip --diagram
+
+# Visualize weights as heatmap
+python scripts/model_inspector.py weights runs/model.zip --heatmap
+
+# Analyze activations over episodes
+python scripts/model_inspector.py activations runs/model.zip --episodes 5
+
+# Export statistics to JSON
+python scripts/model_inspector.py stats runs/model.zip --output stats.json
+```
+
+## Perturbations
+
+Add realistic disturbances for robust training:
+
+```bash
+# Train with perturbations
+python scripts/train_yaw_tracker.py --perturbations config/perturbations.yaml
+```
+
+Available perturbations:
+- **Wind**: Steady wind, gusts, turbulence (Dryden model)
+- **Delays**: Sensor latency, actuator delays, jitter
+- **Sensor Noise**: Gaussian noise, drift, outliers, GPS loss
+- **Physics**: CoM offset, motor variations, ground effect
+- **Aerodynamics**: Air drag, blade flapping, VRS
+- **External Forces**: Impulses, vibrations, EMI
 
 ## Deployment
 
