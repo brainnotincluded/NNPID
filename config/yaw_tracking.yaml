@@ -60,8 +60,8 @@ environment:
     sustained_tracking_bonus: 0.3  # Reduced from 0.5 (now continuous)
     sustained_tracking_threshold: 0.1  # 0.1 rad = ~6 degrees
     sustained_tracking_time: 0.5   # seconds on target for bonus
-    crash_penalty: 10.0
-    alive_bonus: 0.05              # Reduced from 0.1 (now conditional)
+    crash_penalty: 50.0            # Strongly discourage crashes (updated from 10.0)
+    alive_bonus: 0.1               # Reward survival (updated from 0.05)
     
     # Zone thresholds for facing reward
     on_target_threshold: 0.1       # 6° - high reward zone
@@ -96,7 +96,7 @@ environment:
     
     # Safety settings
     safety_tilt_threshold: 0.5   # radians (~28°) - ignore yaw if exceeded
-    yaw_authority: 0.03          # max yaw torque (balanced for tracking)
+    yaw_authority: 0.20          # max yaw torque (allows ~0.6 rad/s yaw, updated from 0.03)
     max_integral: 0.5            # anti-windup limit
 
 algorithm:
