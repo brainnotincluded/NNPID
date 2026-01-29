@@ -291,3 +291,21 @@ python scripts/evaluate_yaw_tracker.py \
     --render \
     --episodes 10
 ```
+
+## Using Trained Models
+
+After training, you can integrate trained models into your own control systems using the `TrainedYawTracker` wrapper class.
+
+**Quick Example:**
+
+```python
+from src.deployment.trained_yaw_tracker import TrainedYawTracker
+
+# Load model
+tracker = TrainedYawTracker.from_path("runs/best_model")
+
+# In your control loop
+yaw_rate_cmd = tracker.predict(observation, deterministic=True)
+```
+
+**Full Guide:** See [Using Trained Models](TRAINED_MODEL_USAGE.md) for complete integration guide, API reference, and examples.

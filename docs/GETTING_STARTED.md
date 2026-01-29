@@ -145,8 +145,9 @@ NNPID/
 ## Next Steps
 
 1. **Train a model**: See [Training Guide](TRAINING.md)
-2. **Deploy to SITL**: See [SITL Integration](SITL_INTEGRATION.md)
-3. **Understand code**: See [Architecture](../ARCHITECTURE.md)
+2. **Use trained models**: See [Using Trained Models](TRAINED_MODEL_USAGE.md)
+3. **Deploy to SITL**: See [SITL Integration](SITL_INTEGRATION.md)
+4. **Understand code**: See [Architecture](../ARCHITECTURE.md)
 
 ## Common Issues
 

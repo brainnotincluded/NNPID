@@ -33,7 +33,8 @@ class TrainedYawTracker:
     """Wrapper for trained yaw tracking neural network model.
 
     This class encapsulates a trained model and provides a simple interface
-    for getting yaw rate commands based on current observations.
+    for getting yaw rate commands based on current observations. It handles
+    model loading, observation normalization (VecNormalize), and action prediction.
 
     Example:
         ```python
@@ -42,21 +43,26 @@ class TrainedYawTracker:
 
         # In your control loop
         while True:
-            # Get observation from environment
+            # Get observation from environment (11 elements)
             obs = env.get_observation()
 
             # Get yaw rate command [-1, 1]
             yaw_rate_cmd = tracker.predict(obs, deterministic=True)
 
-            # Use command in your control system
-            motors = stabilizer.compute_motors(state, yaw_rate_cmd, dt)
+            # Scale to actual yaw rate and use in control system
+            actual_yaw_rate = yaw_rate_cmd * max_yaw_rate  # e.g., 2.0 rad/s
+            motors = stabilizer.compute_motors(state, actual_yaw_rate, dt)
         ```
 
     Attributes:
-        model: Loaded stable-baselines3 model
-        vec_normalize: VecNormalize wrapper for observation normalization
+        model: Loaded stable-baselines3 model (PPO/SAC)
+        vec_normalize: VecNormalize wrapper for observation normalization (optional)
         config: Environment configuration used during training
-        observation_space: Shape of observation vector
+        observation_space: Size of observation vector (default: 11)
+
+    See Also:
+        - [Using Trained Models Guide](../../docs/TRAINED_MODEL_USAGE.md) for detailed documentation
+        - [Training Guide](../../docs/TRAINING.md) for training models
     """
 
     def __init__(
@@ -95,18 +101,31 @@ class TrainedYawTracker:
     ) -> TrainedYawTracker:
         """Load model from file path.
 
+        This is the recommended way to create a TrainedYawTracker instance.
+        It automatically handles model loading and VecNormalize initialization.
+
         Args:
             model_path: Path to model directory or .zip file
-                - If directory: looks for best_model.zip or final_model.zip
+                - If directory: searches for best_model.zip or final_model.zip
                 - If file: loads directly
             config: Optional environment configuration (uses training config if None)
 
         Returns:
-            TrainedYawTracker instance
+            TrainedYawTracker instance ready to use
 
         Raises:
             FileNotFoundError: If model file not found
             ValueError: If model cannot be loaded
+            ImportError: If stable-baselines3 is not installed
+
+        Example:
+            ```python
+            # Load from directory (searches for best_model.zip)
+            tracker = TrainedYawTracker.from_path("runs/best_model")
+
+            # Load from specific file
+            tracker = TrainedYawTracker.from_path("runs/model_12345/final_model.zip")
+            ```
         """
         if not SB3_AVAILABLE:
             raise ImportError(
@@ -174,12 +193,27 @@ class TrainedYawTracker:
     ) -> float:
         """Predict yaw rate command from observation.
 
+        This is the main method for getting control commands from the trained model.
+        It handles observation normalization automatically if VecNormalize was loaded.
+
         Args:
             observation: Observation vector from environment
                 Shape: (11,) for YawTrackingEnv
-                Contains: [target_dir_x, target_dir_y, target_angular_vel,
-                           current_yaw_rate, yaw_error, roll, pitch, ...]
+                Elements:
+                - [0] target_dir_x: X component of target direction
+                - [1] target_dir_y: Y component of target direction
+                - [2] target_angular_vel: Target angular velocity (rad/s)
+                - [3] current_yaw_rate: Current yaw rate (rad/s)
+                - [4] yaw_error: Yaw error angle (rad)
+                - [5] roll: Current roll angle (rad)
+                - [6] pitch: Current pitch angle (rad)
+                - [7] altitude_error: Altitude error (m)
+                - [8] velocity_x: X velocity (m/s)
+                - [9] velocity_y: Y velocity (m/s)
+                - [10] previous_action: Previous action value
             deterministic: If True, use deterministic policy (default: True)
+                - True: Consistent behavior for deployment
+                - False: Stochastic for exploration/testing
 
         Returns:
             Yaw rate command in range [-1, 1]
@@ -188,7 +222,17 @@ class TrainedYawTracker:
                 - 0.0: No yaw command
 
         Raises:
-            ValueError: If observation shape is incorrect
+            ValueError: If observation shape is incorrect (wrong size or dimension)
+
+        Example:
+            ```python
+            # Get command
+            yaw_cmd = tracker.predict(obs, deterministic=True)
+
+            # Scale to actual yaw rate
+            max_yaw_rate = 2.0  # rad/s
+            actual_yaw_rate = yaw_cmd * max_yaw_rate
+            ```
         """
         obs = np.asarray(observation, dtype=np.float32)
 
@@ -219,19 +263,40 @@ class TrainedYawTracker:
     def reset(self) -> None:
         """Reset internal state.
 
-        Currently a no-op, but can be extended for models with internal state.
+        Currently a no-op, but can be extended for models with internal state
+        (e.g., recurrent neural networks with hidden states).
+
+        Example:
+            ```python
+            # Reset before new episode
+            tracker.reset()
+            ```
         """
         pass
 
     def get_info(self) -> dict[str, Any]:
         """Get controller information.
 
+        Returns a dictionary with details about the loaded model and configuration.
+
         Returns:
             Dictionary with model information:
-            - model_type: Type of model (e.g., "PPO")
-            - observation_space: Size of observation vector
+            - model_type: Type of model (e.g., "PPO", "SAC")
+            - observation_space: Size of observation vector (default: 11)
             - has_normalization: Whether VecNormalize is loaded
-            - config: Environment configuration
+            - config: Environment configuration dictionary with keys:
+              - target_patterns: List of target motion patterns
+              - target_speed_min/max: Target speed range
+              - control_frequency: Control loop frequency
+              - yaw_authority: Yaw torque authority
+
+        Example:
+            ```python
+            info = tracker.get_info()
+            print(f"Model: {info['model_type']}")
+            print(f"Observation space: {info['observation_space']}")
+            print(f"Has normalization: {info['has_normalization']}")
+            ```
         """
         info = {
             "model_type": type(self.model).__name__,

@@ -281,6 +281,7 @@ cd ardupilot && ./Tools/environment_install/install-prereqs-ubuntu.sh
 - [Getting Started](docs/GETTING_STARTED.md) - Setup and first steps
 - [Architecture](ARCHITECTURE.md) - Code structure for developers
 - [Training Guide](docs/TRAINING.md) - How to train models
+- [Using Trained Models](docs/TRAINED_MODEL_USAGE.md) - Load and use trained models
 - [SITL Integration](docs/SITL_INTEGRATION.md) - ArduPilot connection
 
 ## Contributing

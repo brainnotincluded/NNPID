@@ -219,6 +219,31 @@ class MAVLinkBridge:
 
 **Purpose**: Deploy trained models to real/simulated drones.
 
+#### `trained_yaw_tracker.py` - Model Wrapper
+
+```python
+class TrainedYawTracker:
+    """Wrapper for trained yaw tracking neural network model.
+    
+    Provides simple interface for loading and using trained models:
+    - from_path(): Load model from file/directory
+    - predict(): Get yaw rate command from observation
+    - Automatic VecNormalize handling
+    
+    Usage:
+        tracker = TrainedYawTracker.from_path("runs/best_model")
+        yaw_cmd = tracker.predict(obs, deterministic=True)
+    """
+```
+
+**Key Features:**
+- Encapsulates model loading and normalization
+- Handles VecNormalize automatically if available
+- Validates observation format
+- Simple API for integration into custom control loops
+
+See [Trained Model Usage Guide](docs/TRAINED_MODEL_USAGE.md) for details.
+
 #### `yaw_tracker_sitl.py`
 
 ```python
@@ -564,6 +589,38 @@ Environment.reset()
 ```
 
 ### Deployment Flow
+
+**Using TrainedYawTracker (Recommended):**
+
+```
+Trained Model (.zip)
+    │
+    ▼
+TrainedYawTracker.from_path()
+    │
+    ├── Loads PPO model
+    ├── Loads VecNormalize (if available)
+    │
+    ▼
+Your Control Loop:
+    │
+    ├── Get state from sensors/simulator
+    ├── Build observation vector (11 elements)
+    │
+    ▼
+tracker.predict(obs, deterministic=True)
+    │
+    ├── Normalize observation (if VecNormalize loaded)
+    ├── Model.predict() → yaw_rate_cmd [-1, 1]
+    │
+    ▼
+Scale to actual yaw rate: yaw_cmd * max_yaw_rate
+    │
+    ▼
+Use with stabilizer/controller
+```
+
+**Using YawTrackerSITL (ArduPilot SITL):**
 
 ```
 ArduPilot SITL
