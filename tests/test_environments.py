@@ -9,6 +9,7 @@ pytest.importorskip("gymnasium")
 
 from src.environments.base_drone_env import BaseDroneEnv, DroneEnvConfig
 from src.environments.hover_env import HoverEnv, HoverEnvConfig
+from src.environments.yaw_tracking_env import YawTrackingConfig, YawTrackingEnv
 
 
 class TestHoverEnv:
@@ -228,8 +229,6 @@ class TestYawTrackingReward:
         For testing, we use higher yaw_authority and slower targets to verify
         the reward function works correctly when tracking is physically possible.
         """
-        from src.environments.yaw_tracking_env import YawTrackingEnv, YawTrackingConfig
-
         config = YawTrackingConfig(
             max_episode_steps=500,
             target_speed_min=0.1,   # Slow target for reliable testing
@@ -270,7 +269,6 @@ class TestYawTrackingReward:
 
         # Take action opposite to error direction to increase error
         # Use zero action to let error grow
-        total_reward = 0
         large_error_count = 0
 
         for _ in range(20):
@@ -320,9 +318,6 @@ class TestYawTrackingReward:
     def test_velocity_matching_reward(self, env):
         """Test velocity matching component rewards matching target speed."""
         env.reset(seed=42)
-
-        # Get target velocity
-        target_vel = env._current_pattern.get_angular_velocity()
 
         # Step with action that produces similar yaw rate
         # Action of ~0.25 should produce yaw_rate around 0.5 rad/s (target)
@@ -380,7 +375,7 @@ class TestYawTrackingReward:
         rewards_medium_error = []  # 10-30°
         rewards_large_error = []  # > 30°
 
-        for step in range(200):
+        for _step in range(200):
             info = env._get_info()
             yaw_error = info.get("yaw_error", 0)
             abs_error = abs(yaw_error)
