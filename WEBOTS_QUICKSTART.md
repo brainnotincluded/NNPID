@@ -7,7 +7,14 @@
 ### 1. Запустить Webots
 
 ```bash
-webots iris_camera_human.wbt
+# Вариант 1: Через скрипт (рекомендуется)
+./run_webots.sh
+
+# Вариант 2: Напрямую
+/Applications/Webots.app/Contents/MacOS/webots iris_camera_human.wbt
+
+# Вариант 3: Через macOS open
+open -a Webots iris_camera_human.wbt
 ```
 
 ### 2. Запустить ArduPilot SITL
