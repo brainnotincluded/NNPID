@@ -15,6 +15,7 @@ This directory documents critical issues encountered during development, their r
 | [001](001-yaw-sign-inversion.md) | Yaw Torque Sign Inversion | Critical | Resolved |
 | [002](002-motor-mixing-stability.md) | Motor Mixing Changes Cause Stability Loss | Critical | Documented |
 | [003](003-hover-pid-instability.md) | Hover PID Instability | Critical | Resolved |
+| [004](004-config-parameter-mismatch.md) | Config Parameter Mismatch (YAML vs Python) | High | Resolved |
 
 ## Quick Diagnostic Guide
 
