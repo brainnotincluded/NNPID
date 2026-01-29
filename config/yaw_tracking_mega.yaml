@@ -7,8 +7,8 @@ environment:
   # Simulation settings
   model: "generic"
   physics_timestep: 0.002  # 500 Hz physics
-  control_frequency: 50.0  # 50 Hz control (NN inference)
-  max_episode_steps: 1500  # 30 seconds per episode (longer for complex scenarios)
+  control_frequency: 100.0  # 100 Hz control (increased for stability, matches yaw_tracking.yaml)
+  max_episode_steps: 3000  # 30 seconds per episode at 100Hz (adjusted from 1500)
   
   # Hover settings
   hover_height: 1.0
@@ -47,7 +47,7 @@ environment:
     sustained_tracking_bonus: 0.5
     sustained_tracking_threshold: 0.1
     sustained_tracking_time: 0.5
-    crash_penalty: 10.0
+    crash_penalty: 50.0  # Strongly discourage crashes (updated from 10.0, see Issue #004)
     alive_bonus: 0.1
   
   # Success criteria
@@ -57,27 +57,27 @@ environment:
   max_tilt_angle: 1.0  # radians (~57 degrees) - allow more tilt for recovery
   max_altitude_error: 3.0  # meters
   
-  # SITL-style PID stabilizer
+  # SITL-style PID stabilizer (tuned for 100Hz control - see Issue #003)
   stabilizer:
     # Altitude PID
-    altitude_kp: 10.0
-    altitude_ki: 2.0
-    altitude_kd: 5.0
+    altitude_kp: 15.0
+    altitude_ki: 3.0
+    altitude_kd: 8.0
     
-    # Attitude PID (roll/pitch)
-    attitude_kp: 20.0
-    attitude_ki: 1.0
-    attitude_kd: 8.0
+    # Attitude PID (roll/pitch) - TUNED for stability at 100Hz
+    attitude_kp: 15.0   # reduced from 20.0 for stability
+    attitude_ki: 0.5    # reduced from 1.0 to prevent windup
+    attitude_kd: 5.0    # reduced from 8.0 for stability
     
     # Yaw rate control
-    yaw_rate_kp: 3.0
+    yaw_rate_kp: 2.0
     
     # Base thrust
     base_thrust: 0.62
     
     # Safety settings
     safety_tilt_threshold: 0.5
-    yaw_authority: 0.03
+    yaw_authority: 0.20  # Allows ~0.6 rad/s yaw rate (updated from 0.03, see Issue #003)
     max_integral: 0.5
 
   # Random perturbations for realism
