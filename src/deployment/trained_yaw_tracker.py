@@ -204,7 +204,9 @@ class TrainedYawTracker:
         # Normalize observation if VecNormalize is available
         if self.vec_normalize is not None:
             obs_normalized = self.vec_normalize.normalize_obs(obs.reshape(1, -1))
-            obs = np.array(obs_normalized[0], dtype=np.float32)
+            # Extract first element and convert to numpy array
+            obs_normalized_array = np.asarray(obs_normalized)
+            obs = np.array(obs_normalized_array[0], dtype=np.float32)
 
         # Get action from model
         action, _ = self.model.predict(obs, deterministic=deterministic)

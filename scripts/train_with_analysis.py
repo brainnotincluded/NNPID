@@ -347,7 +347,7 @@ class DetailedLoggingCallback(BaseCallback):
         print(f"Total timesteps: {self.num_timesteps:,}")
         print(f"Total episodes: {len(self.analytics.episodes)}")
         print(f"Training time: {(time.time() - self._start_time)/60:.1f} minutes")
-        print(f"\nFinal metrics (last 100 episodes):")
+        print("\nFinal metrics (last 100 episodes):")
         for k, v in final_summary.items():
             if isinstance(v, float):
                 print(f"  {k}: {v:.3f}")
@@ -401,7 +401,7 @@ def main():
         crash_penalty=50.0,  # Increased
     )
 
-    print(f"\nEnvironment config:")
+    print("\nEnvironment config:")
     print(f"  Target patterns: {env_config.target_patterns}")
     print(f"  Target speed: {env_config.target_speed_min}-{env_config.target_speed_max} rad/s")
     print(f"  Control frequency: {env_config.control_frequency} Hz")
@@ -423,10 +423,10 @@ def main():
         clip_obs=10.0,
     )
 
-    print(f"\nTraining setup:")
+    print("\nTraining setup:")
     print(f"  Parallel environments: {n_envs}")
-    print(f"  Observation normalization: enabled")
-    print(f"  Reward normalization: enabled")
+    print("  Observation normalization: enabled")
+    print("  Reward normalization: enabled")
 
     # Model config
     model = PPO(
@@ -450,10 +450,10 @@ def main():
         seed=42,
     )
 
-    print(f"\nModel: PPO")
-    print(f"  Network: [256, 256, 128]")
-    print(f"  Learning rate: 3e-4")
-    print(f"  Batch size: 64")
+    print("\nModel: PPO")
+    print("  Network: [256, 256, 128]")
+    print("  Learning rate: 3e-4")
+    print("  Batch size: 64")
 
     # Callbacks
     detailed_callback = DetailedLoggingCallback(

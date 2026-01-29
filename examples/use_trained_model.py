@@ -11,7 +11,8 @@ import numpy as np
 
 # Import the trained tracker
 from src.deployment.trained_yaw_tracker import TrainedYawTracker
-from src.environments.yaw_tracking_env import YawTrackingEnv, YawTrackingConfig
+from src.environments.yaw_tracking_env import YawTrackingConfig, YawTrackingEnv
+
 
 # Example 1: Basic usage
 def example_basic():
@@ -69,10 +70,6 @@ def example_custom_loop():
     print("Example 2: Custom Control Loop Integration")
     print("=" * 60)
 
-    # Load model
-    model_path = Path("runs/analysis_20260126_150455/best_model")
-    tracker = TrainedYawTracker.from_path(model_path)
-
     # Your custom control loop
     print("\nYour control loop structure:")
     print("""
@@ -83,20 +80,20 @@ def example_custom_loop():
     while running:
         # 1. Get current state from sensors/simulator
         state = get_current_state()  # Your function
-        
+
         # 2. Build observation vector (11 elements for YawTrackingEnv)
         obs = build_observation(state, target)  # Your function
-        
+
         # 3. Get yaw rate command from trained model
         yaw_rate_cmd = tracker.predict(obs, deterministic=True)
-        
+
         # 4. Use command with your stabilizer/controller
         motors = stabilizer.compute_motors(
-            state, 
+            state,
             yaw_rate_cmd=yaw_rate_cmd * max_yaw_rate,  # Scale to rad/s
             dt=dt
         )
-        
+
         # 5. Apply motor commands
         apply_motors(motors)
     """)
