@@ -170,6 +170,6 @@ viz:
 	@LATEST=$$(ls -t runs/*/checkpoints/*.zip 2>/dev/null | head -1); \
 	if [ -z "$$LATEST" ]; then echo "No models found"; exit 1; fi; \
 	echo "Using model: $$LATEST"; \
-	mjpython scripts/run_mega_viz.py --model "$$LATEST" --viz-mode full --episodes 1 --max-steps 500 --record /tmp/viz_output.mp4
+	python scripts/run_mega_viz.py --model "$$LATEST" --viz-mode full --episodes 1 --max-steps 500 --record /tmp/viz_output.mp4
 	@echo "Video saved to /tmp/viz_output.mp4"
 	@open /tmp/viz_output.mp4 2>/dev/null || echo "Open: /tmp/viz_output.mp4"
