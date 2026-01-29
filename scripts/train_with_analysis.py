@@ -21,7 +21,6 @@ import numpy as np
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback, EvalCallback
 from stable_baselines3.common.env_util import make_vec_env
-from stable_baselines3.common.logger import configure
 from stable_baselines3.common.vec_env import VecNormalize
 
 # Add src to path
@@ -206,7 +205,7 @@ class DetailedLoggingCallback(BaseCallback):
 
         return True
 
-    def _finish_episode(self, info: dict, env_idx: int) -> None:
+    def _finish_episode(self, info: dict, _env_idx: int) -> None:
         """Process finished episode."""
         if not self._current_ep_actions:
             return
