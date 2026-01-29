@@ -282,6 +282,7 @@ cd ardupilot && ./Tools/environment_install/install-prereqs-ubuntu.sh
 - [Architecture](ARCHITECTURE.md) - Code structure for developers
 - [Training Guide](docs/TRAINING.md) - How to train models
 - [Using Trained Models](docs/TRAINED_MODEL_USAGE.md) - Load and use trained models
+- [Webots Human Tracking](docs/WEBOTS_HUMAN_TRACKING.md) - Track pedestrians in Webots
 - [SITL Integration](docs/SITL_INTEGRATION.md) - ArduPilot connection
 
 ## Contributing
