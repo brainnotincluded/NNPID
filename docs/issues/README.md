@@ -16,6 +16,7 @@ This directory documents critical issues encountered during development, their r
 | [002](002-motor-mixing-stability.md) | Motor Mixing Changes Cause Stability Loss | Critical | Documented |
 | [003](003-hover-pid-instability.md) | Hover PID Instability | Critical | Resolved |
 | [004](004-config-parameter-mismatch.md) | Config Parameter Mismatch (YAML vs Python) | High | Resolved |
+| [005](005-webots-sitl-protocol-mismatch.md) | Webots-SITL Protocol Mismatch | Critical | Resolved |
 
 ## Quick Diagnostic Guide
 
@@ -36,6 +37,13 @@ This directory documents critical issues encountered during development, their r
 1. Check yaw_authority (should be 0.01-0.03)
 2. Check target speed vs drone capability
 3. Review reward function incentives
+
+### Webots simulation freezes at 0.00x speed
+
+1. Check SITL is running: `ps aux | grep arducopter`
+2. Check protocol compatibility → see [Issue #005](005-webots-sitl-protocol-mismatch.md)
+3. Verify JSON format with debug output
+4. Check for port conflicts on 9002
 
 ## Prevention Checklist
 
