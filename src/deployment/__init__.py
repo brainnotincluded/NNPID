@@ -9,6 +9,7 @@ This module provides utilities for:
 
 from .mavlink_client import DroneState, MAVLinkClient
 from .model_export import ModelExporter, export_to_onnx
+from .trained_yaw_tracker import TrainedYawTracker
 from .yaw_tracker_sitl import (
     TargetState,
     YawTrackerSITL,
@@ -20,6 +21,7 @@ __all__ = [
     "export_to_onnx",
     "MAVLinkClient",
     "DroneState",
+    "TrainedYawTracker",
     "YawTrackerSITL",
     "YawTrackerSITLConfig",
     "TargetState",
