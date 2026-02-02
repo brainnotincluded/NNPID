@@ -90,32 +90,25 @@ class MuJoCoSimulator:
 
         self.timestep = self.model.opt.timestep
 
+        def _require_id(obj_type: mujoco.mjtObj, name: str) -> int:
+            obj_id = mujoco.mj_name2id(self.model, obj_type, name)
+            if obj_id < 0:
+                raise ValueError(f"MuJoCo object '{name}' not found in {model_path}")
+            return obj_id
+
         # Cache body and actuator indices
-        self._body_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "quadrotor")
+        self._body_id = _require_id(mujoco.mjtObj.mjOBJ_BODY, "quadrotor")
         self._motor_ids = [
-            mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_ACTUATOR, f"motor{i}")
-            for i in range(1, 5)
+            _require_id(mujoco.mjtObj.mjOBJ_ACTUATOR, f"motor{i}") for i in range(1, 5)
         ]
 
         # Sensor indices
-        self._gyro_adr = self.model.sensor_adr[
-            mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SENSOR, "gyro")
-        ]
-        self._accel_adr = self.model.sensor_adr[
-            mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SENSOR, "accel")
-        ]
-        self._pos_adr = self.model.sensor_adr[
-            mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SENSOR, "pos")
-        ]
-        self._quat_adr = self.model.sensor_adr[
-            mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SENSOR, "quat")
-        ]
-        self._linvel_adr = self.model.sensor_adr[
-            mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SENSOR, "linvel")
-        ]
-        self._angvel_adr = self.model.sensor_adr[
-            mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SENSOR, "angvel")
-        ]
+        self._gyro_adr = self.model.sensor_adr[_require_id(mujoco.mjtObj.mjOBJ_SENSOR, "gyro")]
+        self._accel_adr = self.model.sensor_adr[_require_id(mujoco.mjtObj.mjOBJ_SENSOR, "accel")]
+        self._pos_adr = self.model.sensor_adr[_require_id(mujoco.mjtObj.mjOBJ_SENSOR, "pos")]
+        self._quat_adr = self.model.sensor_adr[_require_id(mujoco.mjtObj.mjOBJ_SENSOR, "quat")]
+        self._linvel_adr = self.model.sensor_adr[_require_id(mujoco.mjtObj.mjOBJ_SENSOR, "linvel")]
+        self._angvel_adr = self.model.sensor_adr[_require_id(mujoco.mjtObj.mjOBJ_SENSOR, "angvel")]
 
         # Initial state backup for reset
         self._initial_qpos = self.data.qpos.copy()

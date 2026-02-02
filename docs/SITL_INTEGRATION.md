@@ -113,7 +113,7 @@ sim_vehicle.py -v ArduCopter -f JSON --console
 
 # Run trained model (Terminal 2)
 python scripts/run_yaw_tracker_sitl.py \
-    --model runs/best_model \
+    --model runs/<run_name>/best_model \
     --duration 60 \
     --target-speed 0.2
 ```
@@ -207,7 +207,7 @@ Deploy trained NN to SITL:
 
 ```bash
 python scripts/run_yaw_tracker_sitl.py \
-    --model runs/best_model \            # Trained model path
+    --model runs/<run_name>/best_model \  # Trained model path
     --connection tcp:127.0.0.1:5760 \    # MAVLink connection
     --duration 60 \                       # Run time (seconds)
     --target-speed 0.2 \                  # Target angular velocity

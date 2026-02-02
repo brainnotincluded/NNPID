@@ -28,8 +28,11 @@ from ..controllers.offboard_controller import (
 )
 from ..core.mujoco_sim import create_simulator
 from ..core.sensors import SensorConfig, SensorSimulator
+from ..utils.logger import get_logger
 from ..utils.rotations import Rotations
 from ..utils.transforms import CoordinateTransforms
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -187,14 +190,14 @@ class SITLEnv(gym.Env):
         Returns:
             True if connection successful
         """
-        print("Connecting to PX4 SITL...")
+        logger.info("Connecting to PX4 SITL...")
 
         if self._offboard.connect(wait_for_px4=True):
             self._connected = True
-            print("Connected to PX4 SITL")
+            logger.info("Connected to PX4 SITL")
             return True
         else:
-            print("Failed to connect to PX4 SITL")
+            logger.error("Failed to connect to PX4 SITL")
             return False
 
     def disconnect(self) -> None:
@@ -264,11 +267,11 @@ class SITLEnv(gym.Env):
         # Initialize offboard mode
         pos_ned = CoordinateTransforms.position_mujoco_to_ned(init_position)
         if not self._offboard.initialize_offboard(pos_ned):
-            print("Warning: Failed to initialize offboard mode")
+            logger.warning("Failed to initialize offboard mode")
 
         # Arm
         if not self._offboard.arm():
-            print("Warning: Failed to arm")
+            logger.warning("Failed to arm")
         else:
             self._armed = True
 

@@ -12,17 +12,21 @@ from .setpoint_env import (
     SetpointWaypointEnv,
 )
 from .sitl_env import SITLEnv, SITLEnvConfig
-from .trajectory_env import TrajectoryEnv
-from .waypoint_env import WaypointEnv
-from .yaw_tracking_env import (
+from .target_patterns import (
     CircularTarget,
+    EvasiveTarget,
+    Figure8Target,
+    LissajousTarget,
+    MultiFrequencyTarget,
     RandomTarget,
     SinusoidalTarget,
+    SpiralTarget,
     StepTarget,
     TargetPatternType,
-    YawTrackingConfig,
-    YawTrackingEnv,
 )
+from .trajectory_env import TrajectoryEnv
+from .waypoint_env import WaypointEnv
+from .yaw_tracking_env import YawTrackingConfig, YawTrackingEnv
 
 __all__ = [
     # Motor command environments
@@ -53,4 +57,9 @@ __all__ = [
     "RandomTarget",
     "SinusoidalTarget",
     "StepTarget",
+    "Figure8Target",
+    "SpiralTarget",
+    "EvasiveTarget",
+    "LissajousTarget",
+    "MultiFrequencyTarget",
 ]

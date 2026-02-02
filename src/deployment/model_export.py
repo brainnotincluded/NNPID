@@ -13,6 +13,10 @@ from pathlib import Path
 
 import numpy as np
 
+from ..utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 try:
     import torch
     import torch.nn as nn
@@ -168,7 +172,7 @@ class ModelExporter:
             do_constant_folding=True,
         )
 
-        print(f"Exported model to: {output_path}")
+        logger.info("Exported model to: %s", output_path)
 
         # Verify
         if ONNX_AVAILABLE:
@@ -192,10 +196,10 @@ class ModelExporter:
         try:
             model = onnx.load(str(model_path))
             onnx.checker.check_model(model)
-            print("ONNX model verification passed")
+            logger.info("ONNX model verification passed")
             return True
         except Exception as e:
-            print(f"ONNX verification failed: {e}")
+            logger.error("ONNX verification failed: %s", e)
             return False
 
     def _optimize_onnx(self, model_path: Path) -> None:
@@ -212,11 +216,11 @@ class ModelExporter:
                 str(model_path),
                 str(optimized_path),
             )
-            print(f"Optimized model saved to: {optimized_path}")
+            logger.info("Optimized model saved to: %s", optimized_path)
         except ImportError:
-            print("onnxruntime-tools not available, skipping optimization")
+            logger.warning("onnxruntime-tools not available, skipping optimization")
         except Exception as e:
-            print(f"Optimization failed: {e}")
+            logger.error("Optimization failed: %s", e)
 
 
 class SB3PolicyWrapper(nn.Module):

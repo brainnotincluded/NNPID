@@ -13,6 +13,22 @@ This is a drone simulation project integrating MuJoCo physics with ArduPilot SIT
 5. **src/environments/yaw_tracking_env.py** - Main training environment
 6. **config/yaw_tracking.yaml** - Training configuration
 
+## Development Setup
+
+```bash
+# Install dependencies
+uv sync
+pip install -e ".[dev]"
+
+# Pre-commit hooks
+pre-commit install
+pre-commit run --all-files
+
+# Lint and format
+make lint
+make format
+```
+
 ## Directory Structure
 
 ```
@@ -34,6 +50,7 @@ src/
 - Dataclasses for data containers
 - snake_case for functions/variables
 - PascalCase for classes
+- Use `from src.utils.logger import get_logger` instead of `print()`
 
 ### Key Classes
 
@@ -88,7 +105,10 @@ python scripts/train_yaw_tracker.py --timesteps 500000
 
 ### Evaluate Model
 ```bash
-python scripts/evaluate_yaw_tracker.py --model runs/best_model
+python scripts/evaluate_yaw_tracker.py --model runs/<run_name>/best_model
+
+# List available runs
+ls runs/
 ```
 
 ### Run with ArduPilot SITL
@@ -121,7 +141,11 @@ python scripts/run_ardupilot_sim.py
 
 ```bash
 pytest tests/ -v
+pytest tests/ -v -m "not slow"
 ```
+
+Use pytest markers:
+- `@pytest.mark.slow` for long-running tests
 
 ## Key Parameters
 
@@ -136,6 +160,20 @@ pytest tests/ -v
 - Drone mass: 2.0 kg
 - Motor max thrust: 8N each
 - Arm length: 0.25m
+
+## Critical Requirements
+
+- **Control frequency**: must be >= 100Hz for stable hover
+- **VecNormalize**: required for deployment; `vec_normalize.pkl` must exist
+
+## Logging
+
+```python
+from src.utils.logger import get_logger
+
+logger = get_logger(__name__)
+logger.info("Use the project logger, not print()")
+```
 
 ## Debugging Tips
 

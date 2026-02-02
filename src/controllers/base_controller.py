@@ -7,6 +7,7 @@ from typing import Any
 
 import numpy as np
 
+from ..core.motor_mixer import mix_x_configuration
 from ..core.mujoco_sim import QuadrotorState
 
 
@@ -208,19 +209,8 @@ class PIDController(BaseController):
         yaw_torque = self.kp_att[2] * yaw_error - self.kd_att[2] * r
 
         # Motor mixing (X configuration)
-        # Motor 1 (FR): + thrust + roll + pitch + yaw
-        # Motor 2 (FL): + thrust - roll + pitch - yaw
-        # Motor 3 (BL): + thrust - roll - pitch + yaw
-        # Motor 4 (BR): + thrust + roll - pitch - yaw
-
         base_thrust = thrust / 4.0
-
-        m1 = base_thrust + roll_torque + pitch_torque + yaw_torque
-        m2 = base_thrust - roll_torque + pitch_torque - yaw_torque
-        m3 = base_thrust - roll_torque - pitch_torque + yaw_torque
-        m4 = base_thrust + roll_torque - pitch_torque - yaw_torque
-
-        motors = np.array([m1, m2, m3, m4])
+        motors = mix_x_configuration(base_thrust, roll_torque, pitch_torque, yaw_torque)
 
         # Normalize to [0, 1]
         max_thrust_per_motor = 8.0  # N (from config)

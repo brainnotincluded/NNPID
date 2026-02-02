@@ -12,6 +12,7 @@ from gymnasium import spaces
 from ..core.mujoco_sim import QuadrotorState, create_simulator
 from ..core.quadrotor import QuadrotorConfig, QuadrotorDynamics
 from ..utils.rotations import Rotations
+from .utils import sample_initial_state
 
 
 @dataclass
@@ -290,38 +291,15 @@ class BaseDroneEnv(gym.Env):
         Returns:
             Tuple of (position, velocity, quaternion, angular_velocity)
         """
-        rng = self._np_random
         cfg = self.config
-
-        # Random position around origin
-        position = rng.uniform(
-            -np.array(cfg.init_position_range),
-            np.array(cfg.init_position_range),
+        return sample_initial_state(
+            rng=self._np_random,
+            position_range=cfg.init_position_range,
+            velocity_range=cfg.init_velocity_range,
+            angle_range=cfg.init_angle_range,
+            angular_velocity_range=cfg.init_angular_velocity_range,
+            min_z=0.5,
         )
-        position[2] = abs(position[2]) + 0.5  # Ensure above ground (Z-up in MuJoCo)
-
-        # Random velocity
-        velocity = rng.uniform(
-            -cfg.init_velocity_range,
-            cfg.init_velocity_range,
-            size=3,
-        )
-
-        # Random small tilt
-        roll = rng.uniform(-cfg.init_angle_range, cfg.init_angle_range)
-        pitch = rng.uniform(-cfg.init_angle_range, cfg.init_angle_range)
-        yaw = rng.uniform(-np.pi, np.pi)  # Full yaw range
-
-        quaternion = Rotations.euler_to_quaternion(roll, pitch, yaw)
-
-        # Random angular velocity
-        angular_velocity = rng.uniform(
-            -cfg.init_angular_velocity_range,
-            cfg.init_angular_velocity_range,
-            size=3,
-        )
-
-        return position, velocity, quaternion, angular_velocity
 
     def _get_observation(self) -> np.ndarray:
         """Get current observation.

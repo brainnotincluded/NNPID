@@ -154,7 +154,7 @@ class HoverStabilizer:
     - attitude_kp: 15.0 (reduced from 40.0)
     - attitude_ki: 0.5 (reduced from 2.0)
     - attitude_kd: 5.0 (reduced from 15.0)
-    - yaw_authority: 0.03 (balanced for tracking)
+    - yaw_authority: 0.20 (balanced for tracking)
     """
 ```
 
@@ -231,7 +231,7 @@ class TrainedYawTracker:
     - Automatic VecNormalize handling
     
     Usage:
-        tracker = TrainedYawTracker.from_path("runs/best_model")
+        tracker = TrainedYawTracker.from_path("runs/<run_name>/best_model")
         yaw_cmd = tracker.predict(obs, deterministic=True)
     """
 ```

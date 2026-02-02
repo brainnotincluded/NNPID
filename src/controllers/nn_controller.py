@@ -8,6 +8,7 @@ from typing import Any
 import numpy as np
 
 from ..core.mujoco_sim import QuadrotorState
+from ..utils.logger import get_logger
 from .base_controller import BaseController
 
 try:
@@ -29,6 +30,9 @@ except ImportError:
     PPO = None
     SAC = None
     TD3 = None
+
+
+logger = get_logger(__name__)
 
 
 class NNController(BaseController):
@@ -81,7 +85,7 @@ class NNController(BaseController):
         model_path = Path(model_path)
 
         if not model_path.exists():
-            print(f"Model not found: {model_path}")
+            logger.error("Model not found: %s", model_path)
             return False
 
         try:
@@ -92,10 +96,10 @@ class NNController(BaseController):
             elif self.model_type == "onnx":
                 return self._load_onnx_model(model_path)
             else:
-                print(f"Unknown model type: {self.model_type}")
+                logger.error("Unknown model type: %s", self.model_type)
                 return False
         except Exception as e:
-            print(f"Failed to load model: {e}")
+            logger.error("Failed to load model: %s", e)
             return False
 
     def _load_sb3_model(self, model_path: Path) -> bool:
@@ -109,12 +113,12 @@ class NNController(BaseController):
                 self._model = algo_class.load(str(model_path), device=self.device)
                 self._policy = self._model.policy
                 self._is_initialized = True
-                print(f"Loaded {algo_class.__name__} model from {model_path}")
+                logger.info("Loaded %s model from %s", algo_class.__name__, model_path)
                 return True
             except Exception:
                 continue
 
-        print(f"Could not load SB3 model from {model_path}")
+        logger.error("Could not load SB3 model from %s", model_path)
         return False
 
     def _load_torch_model(self, model_path: Path) -> bool:
@@ -128,7 +132,7 @@ class NNController(BaseController):
         if isinstance(checkpoint, dict):
             if "model_state_dict" in checkpoint:
                 # Need to know architecture to load state dict
-                print("State dict loading requires model architecture")
+                logger.error("State dict loading requires model architecture")
                 return False
             elif "policy" in checkpoint:
                 self._policy = checkpoint["policy"]
@@ -299,11 +303,11 @@ class NNController(BaseController):
             True if export successful
         """
         if not TORCH_AVAILABLE:
-            print("PyTorch required for ONNX export")
+            logger.error("PyTorch required for ONNX export")
             return False
 
         if self._policy is None and self._model is None:
-            print("No model to export")
+            logger.error("No model to export")
             return False
 
         model = self._policy if self._policy is not None else self._model
@@ -326,11 +330,11 @@ class NNController(BaseController):
                 },
             )
 
-            print(f"Exported model to {output_path}")
+            logger.info("Exported model to %s", output_path)
             return True
 
         except Exception as e:
-            print(f"ONNX export failed: {e}")
+            logger.error("ONNX export failed: %s", e)
             return False
 
     def get_info(self) -> dict[str, Any]:

@@ -199,6 +199,7 @@ class TrainedYawTracker:
         self,
         observation: np.ndarray,
         deterministic: bool = True,
+        dead_zone: float = 0.05,
     ) -> float:
         """Predict yaw rate command from observation.
 
@@ -223,6 +224,9 @@ class TrainedYawTracker:
             deterministic: If True, use deterministic policy (default: True)
                 - True: Consistent behavior for deployment
                 - False: Stochastic for exploration/testing
+            dead_zone: Commands below this threshold are zeroed (default: 0.05)
+                - Prevents jitter around target
+                - Set to 0.0 to disable
 
         Returns:
             Yaw rate command in range [-1, 1]
@@ -266,6 +270,10 @@ class TrainedYawTracker:
 
         # Extract scalar yaw rate command
         yaw_rate_cmd = float(action[0]) if len(action) > 0 else 0.0
+
+        # Apply dead zone - zero out small commands to prevent jitter
+        if dead_zone > 0 and abs(yaw_rate_cmd) < dead_zone:
+            yaw_rate_cmd = 0.0
 
         return yaw_rate_cmd
 

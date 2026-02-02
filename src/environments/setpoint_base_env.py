@@ -15,8 +15,10 @@ import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 
+from ..controllers.position_controller import PositionController, PositionControllerConfig
 from ..core.mujoco_sim import create_simulator
 from ..utils.rotations import Rotations
+from .utils import build_setpoint_observation, sample_initial_state
 
 
 class SetpointMode(Enum):
@@ -124,7 +126,13 @@ class SetpointBaseEnv(gym.Env):
         self._episode_reward = 0.0
 
         # Position controller state
-        self._velocity_integral = np.zeros(3)
+        self._position_controller = PositionController(
+            PositionControllerConfig(
+                vel_p_gain=self.config.vel_p_gain,
+                vel_i_gain=self.config.vel_i_gain,
+                physics_timestep=self.config.physics_timestep,
+            )
+        )
         self._current_setpoint_pos = np.zeros(3)
         self._current_setpoint_vel = np.zeros(3)
         self._current_yaw_setpoint = 0.0
@@ -243,7 +251,7 @@ class SetpointBaseEnv(gym.Env):
         self._episode_reward = 0.0
 
         # Reset controller state
-        self._velocity_integral = np.zeros(3)
+        self._position_controller.reset()
         self._current_setpoint_pos = init_pos.copy()
         self._current_setpoint_vel = np.zeros(3)
         self._current_yaw_setpoint = 0.0
@@ -279,7 +287,8 @@ class SetpointBaseEnv(gym.Env):
 
         # Run physics simulation with position controller
         for _ in range(self._physics_steps_per_control):
-            motor_commands = self._position_controller(setpoint_vel, yaw_rate)
+            state = self.sim.get_state()
+            motor_commands = self._position_controller.compute_motors(state, setpoint_vel, yaw_rate)
             self.sim.step(motor_commands)
 
         # Update state
@@ -362,111 +371,22 @@ class SetpointBaseEnv(gym.Env):
 
             return velocity, 0.0
 
-    def _position_controller(
-        self,
-        target_velocity: np.ndarray,
-        yaw_rate: float,
-    ) -> np.ndarray:
-        """Simple position/velocity controller.
-
-        Converts velocity setpoint to motor commands.
-        This simulates PX4's position controller behavior.
-
-        Args:
-            target_velocity: Desired velocity [m/s]
-            yaw_rate: Desired yaw rate [rad/s]
-
-        Returns:
-            Motor commands [0, 1]
-        """
-        state = self.sim.get_state()
-        dt = self.config.physics_timestep
-
-        # Velocity error
-        vel_error = target_velocity - state.velocity
-
-        # Velocity controller (PI)
-        self._velocity_integral += vel_error * dt
-        self._velocity_integral = np.clip(self._velocity_integral, -2.0, 2.0)
-
-        # Desired acceleration
-        accel_cmd = (
-            vel_error * self.config.vel_p_gain + self._velocity_integral * self.config.vel_i_gain
-        )
-
-        # Convert to thrust and attitude
-        # Simplified: assume we want to tilt to achieve horizontal acceleration
-        # and use collective thrust for vertical
-
-        # Get current attitude
-        euler = Rotations.quaternion_to_euler(state.quaternion)
-        roll, pitch, yaw = euler
-
-        # Desired roll/pitch from horizontal acceleration
-        # Simplified dynamics: accel_x ~ pitch, accel_y ~ -roll
-        pitch_cmd = np.clip(accel_cmd[0] / 10.0, -0.5, 0.5)
-        roll_cmd = np.clip(-accel_cmd[1] / 10.0, -0.5, 0.5)
-
-        # Thrust for vertical (gravity compensation + z control)
-        gravity_comp = 0.5  # Approximate hover thrust
-        z_thrust = gravity_comp + accel_cmd[2] / 20.0
-        z_thrust = np.clip(z_thrust, 0.1, 0.9)
-
-        # Simple mixer: convert to motor commands
-        # Attitude errors
-        roll_error = roll_cmd - roll
-        pitch_error = pitch_cmd - pitch
-        yaw_error = yaw_rate - state.angular_velocity[2]
-
-        # PD attitude control
-        roll_torque = roll_error * 2.0 - state.angular_velocity[0] * 0.3
-        pitch_torque = pitch_error * 2.0 - state.angular_velocity[1] * 0.3
-        yaw_torque = yaw_error * 1.0
-
-        # Motor mixing (X configuration)
-        m1 = z_thrust + roll_torque - pitch_torque + yaw_torque  # Front-right
-        m2 = z_thrust - roll_torque - pitch_torque - yaw_torque  # Front-left
-        m3 = z_thrust - roll_torque + pitch_torque + yaw_torque  # Back-left
-        m4 = z_thrust + roll_torque + pitch_torque - yaw_torque  # Back-right
-
-        motors = np.array([m1, m2, m3, m4])
-        motors = np.clip(motors, 0.0, 1.0)
-
-        return motors
-
     def _sample_initial_state(self) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Sample random initial state.
 
         Returns:
             Tuple of (position, velocity, quaternion, angular_velocity)
         """
-        # Position
         pos_range = self.config.init_position_range
-        position = np.array(
-            [
-                self._np_random.uniform(-pos_range[0], pos_range[0]),
-                self._np_random.uniform(-pos_range[1], pos_range[1]),
-                self._np_random.uniform(0.5, 0.5 + pos_range[2]),
-            ]
+        return sample_initial_state(
+            rng=self._np_random,
+            position_range=pos_range,
+            velocity_range=self.config.init_velocity_range,
+            angle_range=self.config.init_angle_range,
+            angular_velocity_range=0.1,
+            min_z=0.5,
+            z_span=pos_range[2],
         )
-
-        # Velocity
-        velocity = self._np_random.uniform(
-            -self.config.init_velocity_range,
-            self.config.init_velocity_range,
-            size=3,
-        )
-
-        # Attitude (small random angles)
-        roll = self._np_random.uniform(-self.config.init_angle_range, self.config.init_angle_range)
-        pitch = self._np_random.uniform(-self.config.init_angle_range, self.config.init_angle_range)
-        yaw = self._np_random.uniform(-np.pi, np.pi)
-        quaternion = Rotations.euler_to_quaternion(roll, pitch, yaw)
-
-        # Angular velocity
-        angular_velocity = self._np_random.uniform(-0.1, 0.1, size=3)
-
-        return position, velocity, quaternion, angular_velocity
 
     def _get_observation(self) -> np.ndarray:
         """Get current observation.
@@ -476,25 +396,14 @@ class SetpointBaseEnv(gym.Env):
         """
         state = self.sim.get_state()
 
-        # Convert quaternion to euler
-        euler = np.array(Rotations.quaternion_to_euler(state.quaternion))
-
-        # Add observation noise
-        position = state.position + self._np_random.normal(0, self.config.position_noise, 3)
-        velocity = state.velocity + self._np_random.normal(0, self.config.velocity_noise, 3)
-
-        obs = np.concatenate(
-            [
-                position,
-                velocity,
-                euler,
-                state.angular_velocity,
-                self._target_position,
-                self._previous_action,
-            ]
-        ).astype(np.float32)
-
-        return obs
+        return build_setpoint_observation(
+            state=state,
+            target_position=self._target_position,
+            previous_action=self._previous_action,
+            rng=self._np_random,
+            position_noise=self.config.position_noise,
+            velocity_noise=self.config.velocity_noise,
+        )
 
     def _get_info(self) -> dict[str, Any]:
         """Get info dictionary.

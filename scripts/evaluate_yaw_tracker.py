@@ -142,7 +142,7 @@ def evaluate_episode(
     action_changes = []
     tracking_times = []
 
-            # Reset
+    # Reset
     options = {"pattern": pattern} if pattern else None
     obs, info = env.reset(options=options)
     metrics.target_pattern = pattern or "random"
@@ -476,6 +476,7 @@ def evaluate(
     if vec_norm_path.exists():
         try:
             from stable_baselines3.common.env_util import make_vec_env
+
             dummy_vec_env = make_vec_env(lambda: YawTrackingEnv(config=config), n_envs=1)
             vec_normalize = VecNormalize.load(str(vec_norm_path), dummy_vec_env)
             vec_normalize.training = False

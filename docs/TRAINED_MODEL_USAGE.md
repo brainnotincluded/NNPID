@@ -8,7 +8,7 @@ This guide explains how to load and use trained yaw tracking models in your own 
 from src.deployment.trained_yaw_tracker import TrainedYawTracker
 
 # Load model
-tracker = TrainedYawTracker.from_path("runs/analysis_20260126_150455/best_model")
+tracker = TrainedYawTracker.from_path("runs/<run_name>/best_model")
 
 # In your control loop
 yaw_rate_cmd = tracker.predict(observation, deterministic=True)
@@ -51,7 +51,7 @@ class TrainedYawTracker:
 **Example:**
 ```python
 # Load from directory (searches for best_model.zip)
-tracker = TrainedYawTracker.from_path("runs/best_model")
+tracker = TrainedYawTracker.from_path("runs/<run_name>/best_model")
 
 # Load from specific file
 tracker = TrainedYawTracker.from_path("runs/model_12345/final_model.zip")
@@ -135,7 +135,7 @@ from src.deployment.trained_yaw_tracker import TrainedYawTracker
 import numpy as np
 
 # 1. Load model once at startup
-tracker = TrainedYawTracker.from_path("runs/best_model")
+tracker = TrainedYawTracker.from_path("runs/<run_name>/best_model")
 
 # 2. In your main control loop
 while running:
@@ -258,7 +258,7 @@ help(TrainedYawTracker)
 ```python
 # Error: FileNotFoundError
 # Solution: Check path and ensure model file exists
-tracker = TrainedYawTracker.from_path("runs/best_model")  # Correct
+tracker = TrainedYawTracker.from_path("runs/<run_name>/best_model")  # Correct
 ```
 
 ### Observation Shape Mismatch

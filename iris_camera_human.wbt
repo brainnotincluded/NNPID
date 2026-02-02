@@ -31,7 +31,7 @@ TexturedBackground {
 }
 TexturedBackgroundLight {
 }
-Pedestrian {
+DEF PEDESTRIAN Pedestrian {
   hidden translation_2 0.05791284028598861 5.551115123125783e-17 0.01227030038766791
   hidden rotation_2 0 -1 0 0.312409090909091
   hidden translation_3 0.016086269593029077 2.7755575615628914e-17 -0.009041181066309648
@@ -125,6 +125,7 @@ Iris {
   hidden angularVelocity_0 1.1197080606859831e-17 1.9821391637764002e-17 -2.921428197970722e-20
   translation 0.08429177451182518 1.4425564054778832 0.7949632124999998
   rotation 7.2786835385513e-16 9.151684167678218e-16 1 0.006826554208111145
+  supervisor TRUE
   controller "ardupilot_vehicle_controller"
   controllerArgs [
     "--motors"

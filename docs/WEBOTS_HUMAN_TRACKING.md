@@ -42,12 +42,17 @@ The system integrates three components:
 
 ### 1. Setup
 
+If Webots is not installed, see `INSTALL_WEBOTS.md`.
+
 ```bash
 # Install dependencies
 pip install pymavlink opencv-python
 
+# First run only: install Webots controllers
+scripts/shell/setup_controllers.sh
+
 # Ensure you have the trained model
-ls runs/best_model/best_model.zip
+ls runs/<run_name>/best_model/best_model.zip
 ```
 
 ### 2. Start Webots
@@ -66,8 +71,11 @@ The scene includes:
 
 ```bash
 # Terminal 1: Start ArduPilot for Webots
-cd /path/to/ardupilot
-sim_vehicle.py -v ArduCopter -f webots-quad --console --map
+scripts/shell/run_sitl.sh
+
+# Or manually:
+cd ~/ardupilot/ArduCopter
+sim_vehicle.py -v ArduCopter -f JSON --console --map
 ```
 
 **Important**: ArduPilot SITL must be started AFTER Webots is running.
@@ -76,8 +84,8 @@ sim_vehicle.py -v ArduCopter -f webots-quad --console --map
 
 ```bash
 # Terminal 2: Run the tracking system
-python webots_human_tracker.py \
-    --model runs/best_model \
+python src/webots/webots_human_tracker.py \
+    --model runs/<run_name>/best_model \
     --duration 300
 ```
 
@@ -186,7 +194,7 @@ View the drone's camera feed:
 
 ```bash
 # Terminal 3: Capture camera
-python webots_capture.py
+python src/webots/webots_capture.py
 ```
 
 This displays the 640x640 grayscale image stream from the drone's camera.

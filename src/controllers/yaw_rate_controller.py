@@ -11,6 +11,7 @@ from typing import Any
 
 import numpy as np
 
+from ..core.motor_mixer import mix_x_configuration
 from ..core.mujoco_sim import QuadrotorState
 from ..utils.rotations import Rotations
 from .base_controller import BaseController
@@ -208,18 +209,7 @@ class YawRateController(BaseController):
         yaw_cmd = np.clip(yaw_cmd, -cfg.max_yaw_cmd, cfg.max_yaw_cmd)
 
         # === Motor Mixing (X configuration) ===
-        # Standard quadrotor X layout:
-        # Motor 1: Front-Right (CW)  -> +roll, -pitch, -yaw
-        # Motor 2: Rear-Left (CW)    -> -roll, +pitch, -yaw
-        # Motor 3: Front-Left (CCW)  -> -roll, -pitch, +yaw
-        # Motor 4: Rear-Right (CCW)  -> +roll, +pitch, +yaw
-
-        m1 = total_thrust + roll_cmd - pitch_cmd - yaw_cmd
-        m2 = total_thrust - roll_cmd + pitch_cmd - yaw_cmd
-        m3 = total_thrust - roll_cmd - pitch_cmd + yaw_cmd
-        m4 = total_thrust + roll_cmd + pitch_cmd + yaw_cmd
-
-        motors = np.array([m1, m2, m3, m4])
+        motors = mix_x_configuration(total_thrust, roll_cmd, pitch_cmd, yaw_cmd)
         motors = np.clip(motors, 0.0, 1.0)
 
         return motors
@@ -308,9 +298,5 @@ class YawRateStabilizer:
         yaw_cmd = self.yaw_rate_kp * yaw_rate_error
 
         # Motor mixing
-        m1 = thrust + roll_cmd - pitch_cmd - yaw_cmd
-        m2 = thrust - roll_cmd + pitch_cmd - yaw_cmd
-        m3 = thrust - roll_cmd - pitch_cmd + yaw_cmd
-        m4 = thrust + roll_cmd + pitch_cmd + yaw_cmd
-
-        return np.clip(np.array([m1, m2, m3, m4]), 0.0, 1.0)
+        motors = mix_x_configuration(thrust, roll_cmd, pitch_cmd, yaw_cmd)
+        return np.clip(motors, 0.0, 1.0)

@@ -220,19 +220,22 @@ Episode length: 523.40 +/- 287.65
 ```bash
 # Basic evaluation
 python scripts/evaluate_yaw_tracker.py \
-    --model runs/latest/best_model
+    --model runs/<run_name>/best_model
 
 # With video rendering
 python scripts/evaluate_yaw_tracker.py \
-    --model runs/latest/best_model \
+    --model runs/<run_name>/best_model \
     --render \
     --output evaluation_video.mp4
 
 # Multiple episodes
 python scripts/evaluate_yaw_tracker.py \
-    --model runs/latest/best_model \
+    --model runs/<run_name>/best_model \
     --episodes 20
 ```
+
+To locate a run, check the `runs/` directory and use the run folder name in
+`runs/<run_name>/best_model`.
 
 ### Metrics
 
@@ -280,14 +283,14 @@ python scripts/evaluate_yaw_tracker.py \
 python scripts/train_yaw_tracker.py --timesteps 100000 --n-envs 4
 
 # 2. Check results
-python scripts/evaluate_yaw_tracker.py --model runs/latest/best_model
+python scripts/evaluate_yaw_tracker.py --model runs/<run_name>/best_model
 
 # 3. If promising, train longer
 python scripts/train_yaw_tracker.py --timesteps 1000000 --n-envs 8
 
 # 4. Final evaluation with video
 python scripts/evaluate_yaw_tracker.py \
-    --model runs/latest/best_model \
+    --model runs/<run_name>/best_model \
     --render \
     --episodes 10
 ```
@@ -302,7 +305,7 @@ After training, you can integrate trained models into your own control systems u
 from src.deployment.trained_yaw_tracker import TrainedYawTracker
 
 # Load model
-tracker = TrainedYawTracker.from_path("runs/best_model")
+tracker = TrainedYawTracker.from_path("runs/<run_name>/best_model")
 
 # In your control loop
 yaw_rate_cmd = tracker.predict(observation, deterministic=True)

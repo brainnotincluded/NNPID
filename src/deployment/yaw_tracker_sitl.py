@@ -31,7 +31,10 @@ try:
 except ImportError:
     SB3_AVAILABLE = False
 
+from ..utils.logger import get_logger
 from ..utils.rotations import Rotations
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -117,6 +120,7 @@ class YawTrackerSITL:
 
         # Load model if provided
         self.model: BaseAlgorithm | None = None
+        self._vec_normalize = None  # VecNormalize for observation normalization
         if model_path is not None:
             self._load_model(model_path)
 
@@ -154,12 +158,13 @@ class YawTrackerSITL:
         }
 
     def _load_model(self, model_path: Path) -> None:
-        """Load trained model."""
+        """Load trained model and VecNormalize if available."""
         if not SB3_AVAILABLE:
-            print("Warning: stable-baselines3 not available, model not loaded")
+            logger.warning("stable-baselines3 not available, model not loaded")
             return
 
         model_path = Path(model_path)
+        original_path = model_path
 
         # Handle directory or file
         if model_path.is_dir():
@@ -172,7 +177,7 @@ class YawTrackerSITL:
         if not model_path.suffix:
             model_path = model_path.with_suffix(".zip")
 
-        print(f"Loading model from {model_path}")
+        logger.info("Loading model from %s", model_path)
 
         try:
             self.model = PPO.load(str(model_path))
@@ -180,7 +185,32 @@ class YawTrackerSITL:
             try:
                 self.model = SAC.load(str(model_path))
             except Exception as e:
-                print(f"Error loading model: {e}")
+                logger.error("Error loading model: %s", e)
+                return
+
+        # Try to load VecNormalize (CRITICAL for correct inference!)
+        self._vec_normalize = None
+        vec_norm_paths = [
+            model_path.parent.parent / "vec_normalize.pkl",  # runs/xxx/vec_normalize.pkl
+            model_path.parent / "vec_normalize.pkl",  # runs/xxx/best_model/vec_normalize.pkl
+            original_path / "vec_normalize.pkl",  # If original was directory
+        ]
+
+        for vec_norm_path in vec_norm_paths:
+            if vec_norm_path.exists():
+                try:
+                    import pickle
+
+                    with open(vec_norm_path, "rb") as f:
+                        self._vec_normalize = pickle.load(f)
+                    self._vec_normalize.training = False
+                    logger.info("Loaded VecNormalize from %s", vec_norm_path)
+                    break
+                except Exception as e:
+                    logger.warning("Could not load VecNormalize: %s", e)
+
+        if self._vec_normalize is None:
+            logger.warning("VecNormalize not found - model may produce incorrect results")
 
     def connect(self) -> bool:
         """Connect to ArduPilot SITL.
@@ -188,7 +218,7 @@ class YawTrackerSITL:
         Returns:
             True if connection successful
         """
-        print(f"Connecting to {self.config.connection_string}...")
+        logger.info("Connecting to %s...", self.config.connection_string)
 
         try:
             self._mav = mavutil.mavlink_connection(
@@ -197,14 +227,14 @@ class YawTrackerSITL:
             )
 
             # Wait for heartbeat
-            print("Waiting for heartbeat...")
+            logger.info("Waiting for heartbeat...")
             msg = self._mav.wait_heartbeat(timeout=self.config.connection_timeout)
 
             if msg is None:
-                print("No heartbeat received")
+                logger.error("No heartbeat received")
                 return False
 
-            print(f"Connected to system {self._mav.target_system}")
+            logger.info("Connected to system %s", self._mav.target_system)
 
             # Start receive thread
             self._connected = True
@@ -221,7 +251,7 @@ class YawTrackerSITL:
             return True
 
         except Exception as e:
-            print(f"Connection failed: {e}")
+            logger.error("Connection failed: %s", e)
             return False
 
     def disconnect(self) -> None:
@@ -259,27 +289,46 @@ class YawTrackerSITL:
                     self._handle_message(msg)
             except Exception as e:
                 if self._running:
-                    print(f"Receive error: {e}")
+                    logger.warning("Receive error: %s", e)
 
     def _handle_message(self, msg) -> None:
         """Handle received MAVLink message."""
         msg_type = msg.get_type()
 
+        def _safe_array(values: list[float]) -> np.ndarray | None:
+            try:
+                arr = np.array(values, dtype=float)
+            except (TypeError, ValueError):
+                return None
+            if not np.all(np.isfinite(arr)):
+                return None
+            return arr
+
         if msg_type == "LOCAL_POSITION_NED":
-            with self._state_lock:
-                self._position = np.array([msg.x, msg.y, msg.z])
-                self._velocity = np.array([msg.vx, msg.vy, msg.vz])
+            position = _safe_array([msg.x, msg.y, msg.z])
+            velocity = _safe_array([msg.vx, msg.vy, msg.vz])
+            if position is not None and velocity is not None:
+                with self._state_lock:
+                    self._position = position
+                    self._velocity = velocity
 
         elif msg_type == "ATTITUDE":
-            with self._state_lock:
-                # Convert Euler to quaternion
-                self._attitude = Rotations.euler_to_quaternion(msg.roll, msg.pitch, msg.yaw)
-                self._angular_velocity = np.array([msg.rollspeed, msg.pitchspeed, msg.yawspeed])
+            euler = _safe_array([msg.roll, msg.pitch, msg.yaw])
+            rates = _safe_array([msg.rollspeed, msg.pitchspeed, msg.yawspeed])
+            if euler is not None and rates is not None:
+                attitude = Rotations.euler_to_quaternion(*euler.tolist())
+                with self._state_lock:
+                    # Convert Euler to quaternion
+                    self._attitude = attitude
+                    self._angular_velocity = rates
 
         elif msg_type == "ATTITUDE_QUATERNION":
-            with self._state_lock:
-                self._attitude = np.array([msg.q1, msg.q2, msg.q3, msg.q4])
-                self._angular_velocity = np.array([msg.rollspeed, msg.pitchspeed, msg.yawspeed])
+            quat = _safe_array([msg.q1, msg.q2, msg.q3, msg.q4])
+            rates = _safe_array([msg.rollspeed, msg.pitchspeed, msg.yawspeed])
+            if quat is not None and rates is not None:
+                with self._state_lock:
+                    self._attitude = quat
+                    self._angular_velocity = rates
 
         elif msg_type == "HEARTBEAT":
             with self._state_lock:
@@ -341,7 +390,7 @@ class YawTrackerSITL:
 
         mode_id = mode_mapping.get(mode.upper())
         if mode_id is None:
-            print(f"Unknown mode: {mode}")
+            logger.error("Unknown mode: %s", mode)
             return False
 
         try:
@@ -358,10 +407,10 @@ class YawTrackerSITL:
                 0,
                 0,
             )
-            print(f"Set mode: {mode}")
+            logger.info("Set mode: %s", mode)
             return True
         except Exception as e:
-            print(f"Set mode failed: {e}")
+            logger.error("Set mode failed: %s", e)
             return False
 
     def arm(self) -> bool:
@@ -387,10 +436,10 @@ class YawTrackerSITL:
                 0,
                 0,
             )
-            print("Arm command sent")
+            logger.info("Arm command sent")
             return True
         except Exception as e:
-            print(f"Arm failed: {e}")
+            logger.error("Arm failed: %s", e)
             return False
 
     def disarm(self, force: bool = False) -> bool:
@@ -419,10 +468,10 @@ class YawTrackerSITL:
                 0,
                 0,
             )
-            print("Disarm command sent")
+            logger.info("Disarm command sent")
             return True
         except Exception as e:
-            print(f"Disarm failed: {e}")
+            logger.error("Disarm failed: %s", e)
             return False
 
     def takeoff(self, altitude: float = 2.0) -> bool:
@@ -451,10 +500,10 @@ class YawTrackerSITL:
                 0,
                 altitude,
             )
-            print(f"Takeoff to {altitude}m")
+            logger.info("Takeoff to %sm", altitude)
             return True
         except Exception as e:
-            print(f"Takeoff failed: {e}")
+            logger.error("Takeoff failed: %s", e)
             return False
 
     def land(self) -> bool:
@@ -480,10 +529,10 @@ class YawTrackerSITL:
                 0,
                 0,
             )
-            print("Land command sent")
+            logger.info("Land command sent")
             return True
         except Exception as e:
-            print(f"Land failed: {e}")
+            logger.error("Land failed: %s", e)
             return False
 
     def send_yaw_rate(self, yaw_rate: float) -> bool:
@@ -531,7 +580,7 @@ class YawTrackerSITL:
             return True
 
         except Exception as e:
-            print(f"Send yaw rate failed: {e}")
+            logger.error("Send yaw rate failed: %s", e)
             return False
 
     def send_guided_velocity(
@@ -582,7 +631,7 @@ class YawTrackerSITL:
             return True
 
         except Exception as e:
-            print(f"Send velocity failed: {e}")
+            logger.error("Send velocity failed: %s", e)
             return False
 
     def update_target(self, dt: float) -> np.ndarray:
@@ -692,7 +741,13 @@ class YawTrackerSITL:
 
         # Get action from NN or use simple controller
         if self.model is not None:
-            action, _ = self.model.predict(obs, deterministic=True)
+            # Normalize observation if VecNormalize is available
+            obs_for_model = obs
+            if self._vec_normalize is not None:
+                obs_normalized = self._vec_normalize.normalize_obs(obs.reshape(1, -1))
+                obs_for_model = np.array(obs_normalized[0], dtype=np.float32)
+
+            action, _ = self.model.predict(obs_for_model, deterministic=True)
             yaw_rate_cmd = float(action[0]) * self.config.max_yaw_rate
         else:
             # Simple proportional controller as fallback
@@ -730,15 +785,15 @@ class YawTrackerSITL:
         Returns:
             True if successful
         """
-        print("\n=== Arm and Takeoff ===")
+        logger.info("=== Arm and Takeoff ===")
 
         # Set GUIDED mode
-        print("Setting GUIDED mode...")
+        logger.info("Setting GUIDED mode...")
         self.set_mode("GUIDED")
         time.sleep(1)
 
         # Arm
-        print("Arming...")
+        logger.info("Arming...")
         self.arm()
 
         # Wait for arm
@@ -747,13 +802,13 @@ class YawTrackerSITL:
             time.sleep(0.1)
 
         if not self._armed:
-            print("Failed to arm")
+            logger.error("Failed to arm")
             return False
 
-        print("Armed!")
+        logger.info("Armed!")
 
         # Takeoff
-        print(f"Taking off to {altitude}m...")
+        logger.info("Taking off to %sm...", altitude)
         self.takeoff(altitude)
 
         # Wait for altitude
@@ -763,13 +818,13 @@ class YawTrackerSITL:
             current_alt = -state["position"][2]
 
             if current_alt >= altitude * 0.9:
-                print(f"Reached altitude: {current_alt:.1f}m")
+                logger.info("Reached altitude: %.1fm", current_alt)
                 return True
 
             time.sleep(0.5)
-            print(f"  Altitude: {current_alt:.1f}m")
+            logger.info("Altitude: %.1fm", current_alt)
 
-        print("Takeoff timeout")
+        logger.error("Takeoff timeout")
         return False
 
     def run_loop(
@@ -786,8 +841,8 @@ class YawTrackerSITL:
         Returns:
             Dictionary of metrics
         """
-        print(f"\n=== Running Yaw Tracking for {duration}s ===")
-        print("Press Ctrl+C to stop")
+        logger.info("=== Running Yaw Tracking for %ss ===", duration)
+        logger.info("Press Ctrl+C to stop")
 
         self._start_time = time.time()
         self._metrics = {"yaw_errors": [], "actions": [], "tracking_time": 0.0}
@@ -802,7 +857,7 @@ class YawTrackerSITL:
 
                 if verbose and int((time.time() - self._start_time) * 10) % 10 == 0:
                     state = self.get_state()
-                    print(
+                    logger.info(
                         f"  t={time.time() - self._start_time:.1f}s "
                         f"yaw_err={np.degrees(yaw_error):+6.1f}° "
                         f"action={action:+.2f} "
@@ -815,7 +870,7 @@ class YawTrackerSITL:
                     time.sleep(dt - elapsed)
 
         except KeyboardInterrupt:
-            print("\nInterrupted")
+            logger.info("Interrupted")
 
         # Compute final metrics
         errors = self._metrics["yaw_errors"]
@@ -826,19 +881,25 @@ class YawTrackerSITL:
                 [1 if abs(e) < 0.1 else 0 for e in errors]
             )
 
-        print("\n=== Results ===")
-        print(f"Mean yaw error: {np.degrees(self._metrics.get('mean_yaw_error', 0)):.1f}°")
-        print(f"Tracking %: {self._metrics.get('tracking_percentage', 0):.1f}%")
+        logger.info("=== Results ===")
+        logger.info(
+            "Mean yaw error: %.1f°",
+            np.degrees(self._metrics.get("mean_yaw_error", 0)),
+        )
+        logger.info(
+            "Tracking %%: %.1f%%",
+            self._metrics.get("tracking_percentage", 0),
+        )
 
         return self._metrics
 
     def shutdown(self) -> None:
         """Safe shutdown."""
-        print("\n=== Shutting down ===")
+        logger.info("=== Shutting down ===")
 
         # Land if armed
         if self._armed:
-            print("Landing...")
+            logger.info("Landing...")
             self.land()
 
             # Wait for landing
@@ -847,7 +908,7 @@ class YawTrackerSITL:
                 time.sleep(0.5)
 
         self.disconnect()
-        print("Shutdown complete")
+        logger.info("Shutdown complete")
 
 
 def main():

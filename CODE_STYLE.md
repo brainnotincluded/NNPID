@@ -84,6 +84,25 @@ result = some_function(
 result = some_function(arg1=value1, arg2=value2, arg3=value3, arg4=value4)
 ```
 
+### 6. Logging
+
+Use the project logger instead of `print()`:
+
+```python
+from src.utils.logger import get_logger
+
+logger = get_logger(__name__)
+logger.info("Training started")
+logger.debug(f"State: {state}")
+```
+
+### 7. Testing Standards
+
+- Use pytest fixtures for setup
+- Mark slow tests with `@pytest.mark.slow`
+- Keep tests deterministic (set seeds)
+- Prefer `tests/test_*.py` naming
+
 ## Commit Messages
 
 ```
@@ -112,6 +131,13 @@ mypy src/
 pytest tests/ -v
 
 # All at once
+pre-commit run --all-files
+```
+
+## Pre-Commit Integration
+
+```bash
+pre-commit install
 pre-commit run --all-files
 ```
 

@@ -44,7 +44,7 @@ else:
 os.environ["PYTHONIOENCODING"] = "UTF-8"
 sys.path.append(f"{WEBOTS_HOME}/lib/controller/python")
 
-from controller import Robot, Camera, RangeFinder  # noqa: E401, E402
+from controller import Robot, Camera, RangeFinder, Supervisor  # noqa: E401, E402
 
 
 class WebotsArduVehicle():
@@ -73,8 +73,13 @@ class WebotsArduVehicle():
                  reversed_motors: List[int] = None,
                  bidirectional_motors: bool = False,
                  uses_propellers: bool = True,
-                 sitl_address: str = "127.0.0.1"):
-        """WebotsArduVehicle constructor"""
+                 sitl_address: str = "127.0.0.1",
+                 tracking_stream_port: int = 9100):
+        """WebotsArduVehicle constructor
+        
+        Args:
+            tracking_stream_port: UDP port to stream drone + human position for NN tracking
+        """
         
         self.motor_velocity_cap = motor_velocity_cap
         self._instance = instance
@@ -83,10 +88,23 @@ class WebotsArduVehicle():
         self._uses_propellers = uses_propellers
         self._webots_connected = True
         self._last_frame_count = -1
+        self._tracking_port = tracking_stream_port + instance
 
-        # Setup Webots robot instance
-        self.robot = Robot()
+        # Setup Webots robot instance (use Supervisor for accessing other nodes)
+        try:
+            self.robot = Supervisor()
+            self._is_supervisor = True
+        except Exception:
+            self.robot = Robot()
+            self._is_supervisor = False
         self._timestep = int(self.robot.getBasicTimeStep())
+        
+        # Find pedestrian node for tracking
+        self._pedestrian_node = None
+        if self._is_supervisor:
+            self._pedestrian_node = self.robot.getFromDef("PEDESTRIAN")
+            if self._pedestrian_node:
+                print(f"Found PEDESTRIAN node for tracking")
 
         # Init sensors
         self.accel = self.robot.getDevice(accel_name)
@@ -129,63 +147,84 @@ class WebotsArduVehicle():
         self._sitl_thread = Thread(daemon=True, target=self._handle_sitl, 
                                    args=[sitl_address, 9002 + 10 * instance])
         self._sitl_thread.start()
+        
+        # Setup tracking data stream (UDP broadcast)
+        self._tracking_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._tracking_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        print(f"Tracking stream available on UDP port {self._tracking_port}")
 
     def _handle_sitl(self, sitl_address: str = "127.0.0.1", port: int = 9002):
-        """Handle all communications with ArduPilot SITL using JSON protocol"""
+        """Handle all communications with ArduPilot SITL using JSON protocol
         
-        # Create UDP socket
+        Protocol (from ArduPilot docs):
+        1. Physics backend BINDS to port 9002 and LISTENS
+        2. SITL SENDS binary PWM data to port 9002
+        3. Backend RECEIVES PWM, applies to motors
+        4. Backend RESPONDS with JSON sensor data to SITL's address
+        """
+        
+        # Create UDP socket and BIND to port 9002 (listen for SITL)
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.setblocking(False)
+        sock.bind(('', port))
+        sock.settimeout(0.1)  # 100ms timeout for recv
         
-        print(f"Connecting to ArduPilot SITL (I{self._instance}) at {sitl_address}:{port}")
+        print(f"ArduPilot JSON backend listening on port {port} (I{self._instance})")
         print(f"Expected SITL output size: {self.SITL_OUTPUT_SIZE} bytes")
+        print(f"Waiting for SITL to connect...")
         self.robot.step(self._timestep)  # Flush print
 
         # Main communication loop
         connected = False
-        send_count = 0
-        recv_count = 0
+        sitl_addr = None
+        frame_count = 0
+        last_print = 0
+        
         while self._webots_connected:
-            # Build and send JSON sensor data
-            json_data = self._get_sensor_json()
             try:
-                sock.sendto(json_data, (sitl_address, port))
-                send_count += 1
-                if send_count == 1:
-                    print(f"First JSON packet sent ({len(json_data)} bytes)")
-                    print(f"Sample: {json_data[:100]}...")
-            except Exception as e:
-                print(f"Send error: {e}")
-            
-            # Check for response (with short timeout)
-            readable, _, _ = select.select([sock], [], [], 0.02)
-            
-            if readable:
-                try:
-                    data, addr = sock.recvfrom(1024)
-                    recv_count += 1
-                    if recv_count == 1:
-                        print(f"First response received ({len(data)} bytes) from {addr}")
-                        if len(data) >= 8:
-                            magic = struct.unpack('<H', data[:2])[0]
-                            print(f"Magic number: {magic} (expected: {self.SITL_OUTPUT_MAGIC})")
-                    
-                    if data and len(data) >= self.SITL_OUTPUT_SIZE:
-                        if self._parse_sitl_output(data):
-                            if not connected:
-                                print(f"Connected to ArduPilot SITL (I{self._instance})")
-                                connected = True
-                    elif data:
-                        print(f"Received undersized packet: {len(data)} bytes (need {self.SITL_OUTPUT_SIZE})")
-                except socket.error as e:
-                    print(f"Recv error: {e}")
+                # RECEIVE binary PWM data from SITL
+                data, addr = sock.recvfrom(1024)
+                
+                if len(data) < self.SITL_OUTPUT_SIZE:
+                    continue
+                
+                # Parse SITL output (PWM commands)
+                if not self._parse_sitl_output(data):
+                    continue
+                
+                # Track connection
+                if not connected:
+                    sitl_addr = addr
+                    print(f"✅ Connected to ArduPilot SITL at {addr}")
+                    connected = True
+                
+                frame_count += 1
+                
+                # Build and RESPOND with JSON sensor data
+                json_data = self._get_sensor_json()
+                sock.sendto(json_data, addr)
+                
+                # Print status periodically
+                if frame_count - last_print >= 1000:
+                    print(f"Frame {frame_count}: Running at ~{1000/(self._timestep/1000):.0f} Hz")
+                    last_print = frame_count
+                
+            except socket.timeout:
+                # No data from SITL - this is normal when SITL isn't running
+                pass
+            except socket.error as e:
+                if connected:
+                    print(f"Socket error: {e}")
+
+            # Send tracking data for external NN tracker
+            self._send_tracking_data()
 
             # Step Webots simulation
             if self.robot.step(self._timestep) == -1:
                 break
 
         sock.close()
+        self._tracking_sock.close()
         self._webots_connected = False
         print(f"Disconnected from Webots (I{self._instance})")
 
@@ -281,6 +320,58 @@ class WebotsArduVehicle():
         except struct.error as e:
             print(f"Struct unpack error: {e}")
             return False
+
+    def _get_tracking_data(self) -> dict:
+        """Get tracking data (drone + human position) for external NN tracker.
+        
+        Returns:
+            Dictionary with drone and human positions in NED frame
+        """
+        # Get drone position and attitude
+        pos = self.gps.getValues()
+        rpy = self.imu.getRollPitchYaw()
+        vel = self.gps.getSpeedVector()
+        gyro = self.gyro.getValues()
+        
+        # Convert to NED
+        drone_pos_ned = [pos[1], pos[0], -pos[2]]  # Webots ENU -> NED
+        drone_vel_ned = [vel[1], vel[0], -vel[2]]
+        
+        # Get human position if available
+        human_pos_ned = None
+        if self._is_supervisor and self._pedestrian_node:
+            try:
+                trans_field = self._pedestrian_node.getField("translation")
+                if trans_field:
+                    human_pos = trans_field.getSFVec3f()
+                    human_pos_ned = [human_pos[1], human_pos[0], -human_pos[2]]
+            except Exception:
+                pass
+        
+        return {
+            "timestamp": self.robot.getTime(),
+            "drone": {
+                "position": drone_pos_ned,
+                "velocity": drone_vel_ned,
+                "attitude": [rpy[0], -rpy[1], -rpy[2]],  # roll, pitch, yaw
+                "angular_velocity": [gyro[0], -gyro[1], -gyro[2]],
+            },
+            "human": {
+                "position": human_pos_ned,
+            } if human_pos_ned else None,
+        }
+    
+    def _send_tracking_data(self):
+        """Send tracking data via UDP for external NN tracker."""
+        try:
+            data = self._get_tracking_data()
+            json_str = json.dumps(data)
+            self._tracking_sock.sendto(
+                json_str.encode('utf-8'), 
+                ('127.0.0.1', self._tracking_port)
+            )
+        except Exception:
+            pass  # Silently ignore errors (no listener connected)
 
     def _apply_motor_commands(self, commands: list):
         """Apply motor commands to Webots motors

@@ -25,6 +25,7 @@ from src.environments.yaw_tracking_env import YawTrackingConfig, YawTrackingEnv
 # Try to import mujoco viewer (optional, we'll use gymnasium render if not available)
 try:
     import mujoco.viewer
+
     MUJOCO_VIEWER_AVAILABLE = True
 except ImportError:
     MUJOCO_VIEWER_AVAILABLE = False
@@ -96,6 +97,7 @@ def load_model_and_env(model_path: Path):
         try:
             # Create a dummy vectorized env for VecNormalize
             from stable_baselines3.common.env_util import make_vec_env
+
             dummy_vec_env = make_vec_env(lambda: YawTrackingEnv(config=config), n_envs=1)
             vec_normalize = VecNormalize.load(str(vec_norm_path), dummy_vec_env)
             vec_normalize.training = False  # Disable training mode
@@ -103,6 +105,7 @@ def load_model_and_env(model_path: Path):
         except Exception as e:
             print(f"Warning: Could not load VecNormalize: {e}")
             import traceback
+
             traceback.print_exc()
 
     return model, env, vec_normalize
@@ -127,9 +130,9 @@ def visualize_interactive(
     if model is None:
         return
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("Interactive Visualization")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"Model: {model_path}")
     print(f"Pattern: {pattern}")
     print(f"Duration: {duration}s")
@@ -138,7 +141,7 @@ def visualize_interactive(
     print("  - Scroll to zoom")
     print("  - Double-click to reset camera")
     print("  - ESC to quit")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     # Reset environment
     options = {"pattern": pattern} if pattern else None
@@ -160,7 +163,7 @@ def visualize_interactive(
 
     # Setup figure
     fig, ax = plt.subplots(figsize=(10, 8))
-    ax.axis('off')
+    ax.axis("off")
     img = ax.imshow(np.zeros((480, 640, 3), dtype=np.uint8))
     plt.tight_layout()
 

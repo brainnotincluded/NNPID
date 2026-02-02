@@ -16,8 +16,11 @@ import numpy as np
 from ..communication.mavlink_bridge import MAVLinkBridge, MAVLinkConfig
 from ..communication.messages import SetpointCommand
 from ..core.mujoco_sim import QuadrotorState
+from ..utils.logger import get_logger
 from ..utils.transforms import CoordinateTransforms
 from .base_controller import BaseController
+
+logger = get_logger(__name__)
 
 
 class OffboardControlMode(Enum):
@@ -156,16 +159,16 @@ class OffboardController(BaseController):
 
         # Send setpoints for 1 second before switching modes
         # PX4 requires streaming setpoints before offboard mode
-        print("Streaming setpoints before offboard mode...")
+        logger.info("Streaming setpoints before offboard mode...")
         for _ in range(50):  # 50 setpoints at 50Hz = 1 second
             self._bridge.send_position_setpoint(self._current_position)
             self._bridge.send_heartbeat()
             time.sleep(0.02)
 
         # Switch to offboard mode
-        print("Switching to offboard mode...")
+        logger.info("Switching to offboard mode...")
         if not self._bridge.set_offboard_mode():
-            print("Failed to set offboard mode")
+            logger.error("Failed to set offboard mode")
             return False
 
         self._in_offboard = True
@@ -180,7 +183,7 @@ class OffboardController(BaseController):
         if not self._connected or self._bridge is None:
             return False
 
-        print("Arming vehicle...")
+        logger.info("Arming vehicle...")
         if self._bridge.arm():
             self._armed = True
             return True

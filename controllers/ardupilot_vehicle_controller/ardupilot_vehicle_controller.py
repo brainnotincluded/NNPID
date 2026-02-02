@@ -89,6 +89,10 @@ def get_args():
                         type=str,
                         default="127.0.0.1",
                         help="IP address of the SITL (useful with WSL2 eg \"172.24.220.98\")")
+    parser.add_argument("--tracking-port",
+                        type=int,
+                        default=9100,
+                        help="UDP port to stream tracking data for NN tracker")
 
     return parser.parse_args()
 
@@ -119,7 +123,8 @@ if __name__ == "__main__":
                                 motor_velocity_cap=args.motor_cap,
                                 bidirectional_motors=args.bidirectional_motors,
                                 uses_propellers=args.uses_propellers,
-                                sitl_address=args.sitl_address)
+                                sitl_address=args.sitl_address,
+                                tracking_stream_port=args.tracking_port)
 
     # User code (ex: connect via drone kit and take off)
     # ...

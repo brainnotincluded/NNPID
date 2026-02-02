@@ -33,23 +33,10 @@ The complete pipeline:
 
 ## Prerequisites
 
-### 1. Install ArduPilot SITL on Server
+### 1. Install ArduPilot SITL
 
-```bash
-# Ubuntu/Linux
-git clone https://github.com/ArduPilot/ardupilot.git
-cd ardupilot
-git submodule update --init --recursive
-./Tools/environment_install/install-prereqs-ubuntu.sh -y
-./waf configure --board sitl
-./waf copter
-echo 'export PATH=$PATH:~/ardupilot/Tools/autotest' >> ~/.bashrc
-source ~/.bashrc
-
-# macOS (Homebrew)
-brew tap ArduPilot/homebrew-px4
-brew install ardupilot-sitl
-```
+See `docs/SITL_INTEGRATION.md` for full setup steps on macOS and Linux.
+Ensure `sim_vehicle.py` is available on your PATH (or use the full path from `~/ardupilot`).
 
 ### 2. Install Python Dependencies
 
@@ -88,11 +75,14 @@ obs_normalized = (obs - mean_obs) / sqrt(var_obs + 1e-8)
 The normalization wrapper is saved as a pickle file alongside the model:
 
 ```
-runs/analysis_20260126_150455/
+runs/<run_name>/
 ├── best_model/
 │   └── best_model.zip          # PPO model
 └── vec_normalize.pkl           # ← REQUIRED for inference!
 ```
+
+Use `runs/<run_name>/best_model` as the model path, and ensure
+`runs/<run_name>/vec_normalize.pkl` exists next to it.
 
 ### How to Use VecNormalize
 
@@ -140,13 +130,13 @@ Run the best model in MuJoCo to verify it works:
 ```bash
 # Run 3 episodes with detailed logging
 python scripts/run_model_mujoco.py \
-    --model runs/analysis_20260126_150455/best_model \
+    --model runs/<run_name>/best_model \
     --episodes 3 \
     --steps 500
 
 # Save detailed step-by-step log for analysis
 python scripts/run_model_mujoco.py \
-    --model runs/analysis_20260126_150455/best_model \
+    --model runs/<run_name>/best_model \
     --episodes 1 \
     --output flight_log.json
 ```
@@ -175,16 +165,16 @@ Options:
 ### Terminal 2: Start Webots Simulator
 
 ```bash
-# Open Webots and load ArduCopter simulation
-# OR run headless
-webots --mode=fast --minimize --batch runs/webots_ardupilot.wbt
+# Open Webots and load the scene
+# Or run headless
+webots --mode=fast --minimize --batch iris_camera_human.wbt
 ```
 
 ### Terminal 3: Run NN Bridge (Deployment)
 
 ```bash
 python scripts/run_yaw_tracker_sitl.py \
-    --model runs/analysis_20260126_150455/best_model \
+    --model runs/<run_name>/best_model \
     --connection tcp:127.0.0.1:5760 \
     --altitude 2.0 \
     --duration 120 \

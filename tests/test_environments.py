@@ -225,7 +225,7 @@ class TestYawTrackingReward:
     def env(self):
         """Create yaw tracking environment with trackable config.
 
-        Note: Default yaw_authority (0.01) is too limited for fast-moving targets.
+        Note: Default yaw_authority can be too limited for fast-moving targets.
         For testing, we use higher yaw_authority and slower targets to verify
         the reward function works correctly when tracking is physically possible.
         """
@@ -451,6 +451,44 @@ class TestYawTrackingReward:
         assert 0 < cfg.on_target_threshold < 0.2  # < ~12°
         assert 0.2 < cfg.close_tracking_threshold < 0.6  # ~12-35°
         assert 1.0 < cfg.searching_threshold < 2.0  # ~60-115°
+
+
+class TestYawTrackingActionSmoothing:
+    """Test yaw tracking action smoothing behavior."""
+
+    def test_action_smoothing_full(self):
+        """Full smoothing should ignore sudden action changes."""
+        config = YawTrackingConfig(
+            max_episode_steps=10,
+            target_speed_min=0.1,
+            target_speed_max=0.1,
+            action_smoothing=1.0,
+            max_action_change=1.0,
+        )
+        env = YawTrackingEnv(config=config)
+        try:
+            env.reset(seed=0)
+            _, _, _, _, info = env.step(np.array([1.0]))
+            assert np.isclose(info["action_change"], 0.0)
+        finally:
+            env.close()
+
+    def test_action_smoothing_disabled(self):
+        """No smoothing should apply raw action (subject to max change)."""
+        config = YawTrackingConfig(
+            max_episode_steps=10,
+            target_speed_min=0.1,
+            target_speed_max=0.1,
+            action_smoothing=0.0,
+            max_action_change=1.0,
+        )
+        env = YawTrackingEnv(config=config)
+        try:
+            env.reset(seed=0)
+            _, _, _, _, info = env.step(np.array([1.0]))
+            assert np.isclose(info["action_change"], 1.0)
+        finally:
+            env.close()
 
 
 if __name__ == "__main__":

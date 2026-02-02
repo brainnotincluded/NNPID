@@ -22,6 +22,9 @@ except ImportError:
     mavutil = None
 
 from ..communication.messages import PX4Mode
+from ..utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -188,7 +191,7 @@ class MAVLinkClient:
         Returns:
             True if connection successful
         """
-        print(f"Connecting to: {self.config.connection_string}")
+        logger.info("Connecting to: %s", self.config.connection_string)
 
         try:
             self._connection = mavutil.mavlink_connection(
@@ -197,14 +200,14 @@ class MAVLinkClient:
             )
 
             # Wait for heartbeat
-            print("Waiting for heartbeat...")
+            logger.info("Waiting for heartbeat...")
             msg = self._connection.wait_heartbeat(timeout=self.config.connection_timeout)
 
             if msg is None:
-                print("No heartbeat received")
+                logger.error("No heartbeat received")
                 return False
 
-            print(f"Connected to system {self._connection.target_system}")
+            logger.info("Connected to system %s", self._connection.target_system)
 
             # Start receive thread
             self._connected = True
@@ -218,7 +221,7 @@ class MAVLinkClient:
             return True
 
         except Exception as e:
-            print(f"Connection failed: {e}")
+            logger.error("Connection failed: %s", e)
             return False
 
     def disconnect(self) -> None:
@@ -256,7 +259,7 @@ class MAVLinkClient:
                     self._handle_message(msg)
             except Exception as e:
                 if self._running:
-                    print(f"Receive error: {e}")
+                    logger.warning("Receive error: %s", e)
 
     def _handle_message(self, msg) -> None:
         """Handle received MAVLink message."""
@@ -345,7 +348,7 @@ class MAVLinkClient:
             self._last_setpoint = time.time()
             return True
         except Exception as e:
-            print(f"Failed to send setpoint: {e}")
+            logger.error("Failed to send setpoint: %s", e)
             return False
 
     def send_position_setpoint(
@@ -367,12 +370,12 @@ class MAVLinkClient:
 
         # Safety checks
         if abs(position[2]) > self.config.max_altitude:
-            print(f"Altitude {position[2]} exceeds limit")
+            logger.warning("Altitude %.2f exceeds limit", position[2])
             return False
 
         dist_from_home = np.linalg.norm(position[:2] - self._home_position[:2])
         if dist_from_home > self.config.geofence_radius:
-            print("Position outside geofence")
+            logger.warning("Position outside geofence")
             return False
 
         # Type mask for position control
@@ -400,7 +403,7 @@ class MAVLinkClient:
             self._last_setpoint = time.time()
             return True
         except Exception as e:
-            print(f"Failed to send setpoint: {e}")
+            logger.error("Failed to send setpoint: %s", e)
             return False
 
     def arm(self) -> bool:
@@ -428,7 +431,7 @@ class MAVLinkClient:
             )
             return True
         except Exception as e:
-            print(f"Arm failed: {e}")
+            logger.error("Arm failed: %s", e)
             return False
 
     def disarm(self, force: bool = False) -> bool:
@@ -459,7 +462,7 @@ class MAVLinkClient:
             )
             return True
         except Exception as e:
-            print(f"Disarm failed: {e}")
+            logger.error("Disarm failed: %s", e)
             return False
 
     def set_offboard_mode(self) -> bool:
@@ -490,7 +493,7 @@ class MAVLinkClient:
             )
             return True
         except Exception as e:
-            print(f"Mode change failed: {e}")
+            logger.error("Mode change failed: %s", e)
             return False
 
     def land(self) -> bool:
@@ -518,7 +521,7 @@ class MAVLinkClient:
             )
             return True
         except Exception as e:
-            print(f"Land failed: {e}")
+            logger.error("Land failed: %s", e)
             return False
 
     def set_state_callback(self, callback: Callable[[DroneState], None]) -> None:
@@ -624,8 +627,8 @@ class NNDeploymentController:
         """
         dt = 1.0 / rate
 
-        print("Starting control loop...")
-        print("Press Ctrl+C to stop")
+        logger.info("Starting control loop...")
+        logger.info("Press Ctrl+C to stop")
 
         try:
             while self._running:
@@ -639,6 +642,6 @@ class NNDeploymentController:
                     time.sleep(dt - elapsed)
 
         except KeyboardInterrupt:
-            print("\nStopping...")
+            logger.info("Stopping...")
         finally:
             self.stop()

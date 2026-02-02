@@ -1,6 +1,6 @@
 # Contributing to NNPID
 
-Добро пожаловать! Этот документ описывает правила и стандарты для контрибуции в проект.
+Welcome! This document describes contribution rules and standards for this project.
 
 ## Table of Contents
 
@@ -16,13 +16,15 @@
 
 ## Code of Conduct
 
-- Будьте уважительны и профессиональны
-- Конструктивная критика приветствуется
-- Фокус на качестве кода, а не на личностях
+- Be respectful and professional
+- Constructive criticism is welcome
+- Focus on code quality, not individuals
 
 ---
 
 ## Getting Started
+
+For full setup instructions, see `docs/GETTING_STARTED.md`.
 
 ### 1. Fork & Clone
 
@@ -723,4 +725,4 @@ pytest tests/ --cov=src --cov-report=html
 - **Bugs**: Open an Issue with reproduction steps
 - **Features**: Open an Issue with use case description
 
-Thank you for contributing! 🚀
+Thank you for contributing!

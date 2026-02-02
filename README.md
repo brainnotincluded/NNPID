@@ -33,8 +33,13 @@ pip install -e .
 python scripts/train_yaw_tracker.py --timesteps 500000
 
 # Evaluate trained model
-python scripts/evaluate_yaw_tracker.py --model runs/latest/best_model
+python scripts/evaluate_yaw_tracker.py --model runs/<run_name>/best_model
+
+# List available runs
+ls runs/
 ```
+
+For full setup details, see `docs/GETTING_STARTED.md`.
 
 ## Project Structure
 
@@ -136,7 +141,7 @@ from src.controllers import PIDController, NNController
 pid = PIDController(kp=1.0, kd=0.1)
 
 # Neural network (trained)
-nn = NNController.load("runs/best_model")
+nn = NNController.load("runs/<run_name>/best_model")
 action = nn.predict(observation)
 ```
 
@@ -198,11 +203,11 @@ Run full visualization with all effects:
 
 ```bash
 # Run with trained model
-python scripts/run_mega_viz.py --model runs/best_model.zip
+python scripts/run_mega_viz.py --model runs/<run_name>/best_model/best_model.zip
 
 # With perturbations and video recording
 python scripts/run_mega_viz.py \
-    --model runs/best_model.zip \
+    --model runs/<run_name>/best_model/best_model.zip \
     --perturbations config/perturbations.yaml \
     --record output.mp4
 ```
@@ -254,7 +259,7 @@ Deploy trained model to ArduPilot SITL:
 
 ```bash
 python scripts/run_yaw_tracker_sitl.py \
-    --model runs/best_model \
+    --model runs/<run_name>/best_model \
     --connection udp:127.0.0.1:14550
 ```
 
@@ -267,14 +272,7 @@ python scripts/run_yaw_tracker_sitl.py \
 
 ### Install ArduPilot SITL
 
-```bash
-# macOS
-brew install ardupilot/ardupilot/ardupilot-sitl
-
-# Linux
-git clone https://github.com/ArduPilot/ardupilot.git
-cd ardupilot && ./Tools/environment_install/install-prereqs-ubuntu.sh
-```
+See `docs/SITL_INTEGRATION.md` for full setup instructions on macOS and Linux.
 
 ## Documentation
 
@@ -283,6 +281,7 @@ cd ardupilot && ./Tools/environment_install/install-prereqs-ubuntu.sh
 - [Training Guide](docs/TRAINING.md) - How to train models
 - [Using Trained Models](docs/TRAINED_MODEL_USAGE.md) - Load and use trained models
 - [Webots Human Tracking](docs/WEBOTS_HUMAN_TRACKING.md) - Track pedestrians in Webots
+- [Webots Quickstart](docs/QUICKSTART_HUMAN_TRACKING.md) - Fast setup for Webots tracking
 - [SITL Integration](docs/SITL_INTEGRATION.md) - ArduPilot connection
 
 ## Contributing

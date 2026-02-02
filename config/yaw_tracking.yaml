@@ -35,6 +35,7 @@ environment:
   
   # Action scaling
   max_yaw_rate: 2.0  # rad/s
+  action_dead_zone: 0.05  # Dead zone: actions below this are zeroed (prevents jitter)
   
   # Observation noise (simulates sensor noise)
   yaw_noise: 0.01

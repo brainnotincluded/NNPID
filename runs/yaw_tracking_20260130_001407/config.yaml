@@ -1,0 +1,198 @@
+algorithm:
+  batch_size: 64
+  clip_range: 0.2
+  ent_coef: 0.01
+  gae_lambda: 0.95
+  gamma: 0.99
+  learning_rate: 0.0003
+  max_grad_norm: 0.5
+  n_epochs: 10
+  n_steps: 2048
+  name: PPO
+  policy: MlpPolicy
+  policy_kwargs:
+    activation_fn: tanh
+    net_arch:
+      pi:
+      - 256
+      - 256
+      - 128
+      vf:
+      - 256
+      - 256
+      - 128
+  vf_coef: 0.5
+deployment:
+  control_rate: 100.0
+  failsafe_action: hold
+  mavlink:
+    component_id: 1
+    connection: tcp:127.0.0.1:5760
+    system_id: 1
+  max_yaw_rate: 2.0
+  timeout: 5.0
+environment:
+  angular_velocity_noise: 0.01
+  control_frequency: 100.0
+  hover_height: 1.0
+  hover_position:
+  - 0.0
+  - 0.0
+  max_altitude_error: 2.0
+  max_episode_steps: 2000
+  max_tilt_angle: 0.8
+  max_yaw_rate: 2.0
+  model: generic
+  physics_timestep: 0.002
+  rewards:
+    action_rate_penalty_weight: 0.03
+    alive_bonus: 0.1
+    close_tracking_threshold: 0.35
+    crash_penalty: 50.0
+    direction_alignment_bonus: 0.1
+    error_reduction_weight: 0.5
+    excess_yaw_rate_penalty: 0.05
+    facing_reward_scale: 5.0
+    facing_reward_weight: 1.5
+    on_target_threshold: 0.1
+    searching_threshold: 1.57
+    sustained_tracking_bonus: 0.3
+    sustained_tracking_threshold: 0.1
+    sustained_tracking_time: 0.5
+    velocity_match_weight: 0.2
+    yaw_rate_penalty_weight: 0.1
+  stabilizer:
+    altitude_kd: 8.0
+    altitude_ki: 3.0
+    altitude_kp: 15.0
+    attitude_kd: 5.0
+    attitude_ki: 0.5
+    attitude_kp: 15.0
+    base_thrust: 0.62
+    max_integral: 0.5
+    safety_tilt_threshold: 0.5
+    yaw_authority: 0.2
+    yaw_rate_kp: 2.0
+  success_threshold: 0.1
+  target_patterns:
+  - circular
+  - random
+  - sinusoidal
+  - step
+  - figure8
+  - spiral
+  - evasive
+  - lissajous
+  - multi_frequency
+  target_radius: 3.0
+  target_speed_max: 0.3
+  target_speed_min: 0.1
+  type: yaw_tracking
+  yaw_noise: 0.01
+evaluation:
+  deterministic: true
+  metrics:
+  - mean_yaw_error
+  - max_yaw_error
+  - tracking_percentage
+  - response_time
+  - episode_reward
+  - episode_length
+  n_episodes: 20
+  render: false
+  save_video: true
+  video_fps: 30
+training:
+  checkpoint_path: checkpoints/
+  curriculum:
+    enabled: true
+    stages:
+    - description: 'Stage 1: Very slow circular target'
+      target_patterns:
+      - circular
+      target_speed_max: 0.1
+      timesteps: 0
+    - description: 'Stage 2: Slow, smooth patterns'
+      target_patterns:
+      - circular
+      - sinusoidal
+      target_speed_max: 0.15
+      timesteps: 50000
+    - description: 'Stage 3: Introduce figure-8 pattern'
+      target_patterns:
+      - circular
+      - sinusoidal
+      - figure8
+      target_speed_max: 0.2
+      timesteps: 100000
+    - description: 'Stage 4: Add Lissajous curves'
+      target_patterns:
+      - circular
+      - sinusoidal
+      - figure8
+      - lissajous
+      target_speed_max: 0.25
+      timesteps: 200000
+    - description: 'Stage 5: Add spiral (variable radius)'
+      target_patterns:
+      - circular
+      - sinusoidal
+      - figure8
+      - lissajous
+      - spiral
+      target_speed_max: 0.3
+      timesteps: 300000
+    - description: 'Stage 6: Add random motion'
+      target_patterns:
+      - circular
+      - sinusoidal
+      - figure8
+      - lissajous
+      - spiral
+      - random
+      target_speed_max: 0.4
+      timesteps: 400000
+    - description: 'Stage 7: Add step changes'
+      target_patterns:
+      - circular
+      - sinusoidal
+      - figure8
+      - lissajous
+      - spiral
+      - random
+      - step
+      target_speed_max: 0.5
+      timesteps: 500000
+    - description: 'Stage 8: Add multi-frequency patterns'
+      target_patterns:
+      - circular
+      - sinusoidal
+      - figure8
+      - lissajous
+      - spiral
+      - random
+      - step
+      - multi_frequency
+      target_speed_max: 0.6
+      timesteps: 600000
+    - description: 'Stage 9: Full complexity - all patterns including evasive'
+      target_patterns:
+      - circular
+      - sinusoidal
+      - figure8
+      - lissajous
+      - spiral
+      - random
+      - step
+      - multi_frequency
+      - evasive
+      target_speed_max: 0.8
+      timesteps: 750000
+  eval_freq: 10000
+  log_interval: 10
+  n_envs: 4
+  n_eval_episodes: 10
+  save_freq: 25000
+  seed: 42
+  tensorboard_log: logs/tensorboard/
+  total_timesteps: 50000

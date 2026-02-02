@@ -11,6 +11,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from ..core.motor_mixer import mix_x_configuration
 from ..core.mujoco_sim import QuadrotorState
 from ..utils.rotations import Rotations
 
@@ -40,8 +41,8 @@ class HoverStabilizerConfig:
     # Attitude PID gains (TUNED for stability at 100-200Hz)
     # Lower gains prevent oscillation, require higher control frequency
     attitude_kp: float = 15.0  # was 40.0 - reduced for stability
-    attitude_ki: float = 0.5   # was 2.0 - reduced to prevent windup
-    attitude_kd: float = 5.0   # was 15.0 - reduced for stability
+    attitude_ki: float = 0.5  # was 2.0 - reduced to prevent windup
+    attitude_kd: float = 5.0  # was 15.0 - reduced for stability
 
     # Yaw rate control
     yaw_rate_kp: float = 2.0
@@ -51,7 +52,7 @@ class HoverStabilizerConfig:
 
     # Safety limits
     safety_tilt_threshold: float = 0.5  # ~28 degrees - ignore yaw above this
-    yaw_authority: float = 0.03  # Max yaw torque (keeps yaw from destabilizing)
+    yaw_authority: float = 0.20  # Max yaw torque (matches yaw tracking defaults)
     max_integral: float = 0.5  # Anti-windup limit
 
 
@@ -184,12 +185,7 @@ class HoverStabilizer:
         # Yaw: positive yaw_torque = want CCW rotation
         #   → increase CCW motors (1, 3), decrease CW motors (2, 4)
 
-        m1 = thrust + roll_torque - pitch_torque + yaw_torque  # Front-Left CCW
-        m2 = thrust + roll_torque + pitch_torque - yaw_torque  # Back-Left CW
-        m3 = thrust - roll_torque + pitch_torque + yaw_torque  # Back-Right CCW
-        m4 = thrust - roll_torque - pitch_torque - yaw_torque  # Front-Right CW
-
-        motors = np.array([m1, m2, m3, m4])
+        motors = mix_x_configuration(thrust, roll_torque, pitch_torque, yaw_torque)
         return np.clip(motors, 0.0, 1.0)
 
     @property

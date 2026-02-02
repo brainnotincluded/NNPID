@@ -281,14 +281,16 @@ class DetailedLoggingCallback(BaseCallback):
             return
 
         # Print progress
-        print(f"\n{'='*70}")
-        print(f"TRAINING PROGRESS - {self.num_timesteps:,} timesteps ({elapsed/60:.1f} min)")
-        print(f"{'='*70}")
+        print(f"\n{'=' * 70}")
+        print(f"TRAINING PROGRESS - {self.num_timesteps:,} timesteps ({elapsed / 60:.1f} min)")
+        print(f"{'=' * 70}")
         print(f"Episodes: {summary['n_episodes']} | FPS: {fps:.0f}")
         print(f"Avg Reward: {summary['avg_reward']:.2f} | Best: {summary['best_reward']:.2f}")
-        print(f"Tracking (<6°): {summary['avg_tracking']*100:.1f}% | Best: {summary['best_tracking']*100:.1f}%")
-        print(f"Close (<20°): {summary['avg_close']*100:.1f}%")
-        print(f"Crash Rate: {summary['crash_rate']*100:.1f}%")
+        print(
+            f"Tracking (<6°): {summary['avg_tracking'] * 100:.1f}% | Best: {summary['best_tracking'] * 100:.1f}%"
+        )
+        print(f"Close (<20°): {summary['avg_close'] * 100:.1f}%")
+        print(f"Crash Rate: {summary['crash_rate'] * 100:.1f}%")
         print(f"Avg Yaw Error: {summary['avg_yaw_error_deg']:.1f}°")
         print(f"Action Smoothness: {summary['avg_action_smoothness']:.3f}")
         print(f"Max Tilt: {summary['avg_max_tilt_deg']:.1f}°")
@@ -345,7 +347,7 @@ class DetailedLoggingCallback(BaseCallback):
         print("=" * 70)
         print(f"Total timesteps: {self.num_timesteps:,}")
         print(f"Total episodes: {len(self.analytics.episodes)}")
-        print(f"Training time: {(time.time() - self._start_time)/60:.1f} minutes")
+        print(f"Training time: {(time.time() - self._start_time) / 60:.1f} minutes")
         print("\nFinal metrics (last 100 episodes):")
         for k, v in final_summary.items():
             if isinstance(v, float):
@@ -375,7 +377,7 @@ def main():
         # Start with very slow targets for easier learning
         target_patterns=["circular"],  # Single simple pattern
         target_speed_min=0.05,  # Very slow (was 0.2)
-        target_speed_max=0.1,   # Very slow (was 0.4)
+        target_speed_max=0.1,  # Very slow (was 0.4)
         # Optimized stability settings
         control_frequency=100.0,
         max_episode_steps=2000,  # 20 seconds
@@ -387,7 +389,7 @@ def main():
         attitude_ki=0.5,
         attitude_kd=5.0,
         yaw_authority=0.20,  # Higher for faster yaw (0.6 rad/s achievable)
-        yaw_rate_kp=5.0,     # Higher for better tracking
+        yaw_rate_kp=5.0,  # Higher for better tracking
         # Reward settings (v2)
         facing_reward_weight=1.5,
         error_reduction_weight=0.5,
@@ -404,7 +406,9 @@ def main():
     print(f"  Target patterns: {env_config.target_patterns}")
     print(f"  Target speed: {env_config.target_speed_min}-{env_config.target_speed_max} rad/s")
     print(f"  Control frequency: {env_config.control_frequency} Hz")
-    print(f"  Episode length: {env_config.max_episode_steps} steps ({env_config.max_episode_steps/env_config.control_frequency}s)")
+    print(
+        f"  Episode length: {env_config.max_episode_steps} steps ({env_config.max_episode_steps / env_config.control_frequency}s)"
+    )
 
     # Create vectorized environment
     n_envs = 8

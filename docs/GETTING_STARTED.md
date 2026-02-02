@@ -8,6 +8,8 @@ This guide walks you through setting up the project and running your first simul
 - **MuJoCo 3.0+** (automatically installed with `mujoco` package)
 - **Git** for version control
 - **8GB+ RAM** recommended for training
+- **Optional**: Webots (for human tracking)
+- **Optional**: ArduPilot SITL (for deployment/SITL workflows)
 
 ## Installation
 
@@ -147,7 +149,9 @@ NNPID/
 1. **Train a model**: See [Training Guide](TRAINING.md)
 2. **Use trained models**: See [Using Trained Models](TRAINED_MODEL_USAGE.md)
 3. **Deploy to SITL**: See [SITL Integration](SITL_INTEGRATION.md)
-4. **Understand code**: See [Architecture](../ARCHITECTURE.md)
+4. **Webots tracking**: See [Quickstart](QUICKSTART_HUMAN_TRACKING.md)
+5. **Deep dive**: See [Webots Human Tracking](WEBOTS_HUMAN_TRACKING.md)
+6. **Understand code**: See [Architecture](../ARCHITECTURE.md)
 
 ## Common Issues
 
