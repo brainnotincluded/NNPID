@@ -12,6 +12,8 @@ from typing import Any
 
 import numpy as np
 
+from ..utils.logger import get_logger
+
 # Add project root to path for imports
 if Path(__file__).parent.parent.parent not in sys.path:
     sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -27,6 +29,8 @@ except ImportError:
     BaseAlgorithm = Any  # type: ignore
 
 from ..environments.yaw_tracking_env import YawTrackingConfig, YawTrackingEnv
+
+logger = get_logger(__name__)
 
 
 class TrainedYawTracker:
@@ -158,9 +162,16 @@ class TrainedYawTracker:
         if not model_path.exists():
             raise FileNotFoundError(f"Model not found at {model_path}")
 
-        # Load model
+        # Load model with custom_objects to handle Python version mismatch
+        # When model is trained on different Python version, lambda functions
+        # (clip_range, lr_schedule) cannot be deserialized due to bytecode changes.
+        # We provide default implementations that work for inference.
+        custom_objects = {
+            "clip_range": lambda _: 0.2,  # Default PPO clip range
+            "lr_schedule": lambda _: 0.0003,  # Default learning rate (unused for inference)
+        }
         try:
-            model = PPO.load(str(model_path))
+            model = PPO.load(str(model_path), custom_objects=custom_objects)
         except Exception as e:
             raise ValueError(f"Failed to load model from {model_path}: {e}") from e
 
@@ -176,13 +187,11 @@ class TrainedYawTracker:
                 from stable_baselines3.common.env_util import make_vec_env
 
                 env_config = config or YawTrackingConfig()
-                dummy_vec_env = make_vec_env(
-                    lambda: YawTrackingEnv(config=env_config), n_envs=1
-                )
+                dummy_vec_env = make_vec_env(lambda: YawTrackingEnv(config=env_config), n_envs=1)
                 vec_normalize = VecNormalize.load(str(vec_norm_path), dummy_vec_env)
                 vec_normalize.training = False
             except Exception as e:
-                print(f"Warning: Could not load VecNormalize: {e}")
+                logger.warning("Could not load VecNormalize: %s", e)
 
         return cls(model=model, vec_normalize=vec_normalize, config=config)
 
@@ -293,9 +302,9 @@ class TrainedYawTracker:
         Example:
             ```python
             info = tracker.get_info()
-            print(f"Model: {info['model_type']}")
-            print(f"Observation space: {info['observation_space']}")
-            print(f"Has normalization: {info['has_normalization']}")
+            logger.info("Model: %s", info["model_type"])
+            logger.info("Observation space: %s", info["observation_space"])
+            logger.info("Has normalization: %s", info["has_normalization"])
             ```
         """
         info = {
