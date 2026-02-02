@@ -35,27 +35,28 @@ classifiers = [
     "Topic :: Games/Entertainment :: Simulation",
 ]
 
+dependencies = [
+    "mujoco>=3.0",
+    "pymavlink>=2.4",
+    "gymnasium>=0.29",
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "pyyaml>=6.0",
+    "stable-baselines3>=2.0",
+    "tensorboard>=2.14",
+    "matplotlib>=3.7",
+    "imageio>=2.31",
+    "imageio-ffmpeg>=0.4",
+    "torch>=2.0",
+    "rich>=13.0",
+    "opencv-python>=4.8",
+]
+
 [project.urls]
 Homepage = "https://github.com/brainnotincluded/NNPID"
 Documentation = "https://github.com/brainnotincluded/NNPID#readme"
 Repository = "https://github.com/brainnotincluded/NNPID.git"
 Issues = "https://github.com/brainnotincluded/NNPID/issues"
-
-[project.dependencies]
-mujoco = ">=3.0"
-pymavlink = ">=2.4"
-gymnasium = ">=0.29"
-numpy = ">=1.24"
-scipy = ">=1.10"
-pyyaml = ">=6.0"
-stable-baselines3 = ">=2.0"
-tensorboard = ">=2.14"
-matplotlib = ">=3.7"
-imageio = ">=2.31"
-imageio-ffmpeg = ">=0.4"
-torch = ">=2.0"
-rich = ">=13.0"
-opencv-python = ">=4.8"
 
 [project.optional-dependencies]
 dev = [
