@@ -482,8 +482,8 @@ def main():
         verbose=0,
     )
 
-    # Training
-    total_timesteps = 1_000_000
+    # Training - 3M steps for 70%+ tracking
+    total_timesteps = 3_000_000
     print(f"\nStarting training for {total_timesteps:,} timesteps...")
     print(f"Logs: {run_dir}")
     print("=" * 70)

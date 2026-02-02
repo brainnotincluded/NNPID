@@ -1,0 +1,21 @@
+{
+  "total_episodes": 2321,
+  "total_timesteps": 3014656,
+  "training_time_seconds": 1643.2633638381958,
+  "final_metrics": {
+    "n_episodes": 2321,
+    "avg_reward": 697.2523388665859,
+    "avg_tracking": 0.48468272349415875,
+    "avg_close": 0.5760973381394271,
+    "crash_rate": 0.57,
+    "avg_yaw_error_deg": 39.44471615792295,
+    "avg_action_smoothness": 1.5091220454482892,
+    "avg_max_tilt_deg": 67.53866486892777,
+    "best_tracking": 1.0,
+    "best_reward": 14969.512620855123
+  },
+  "milestones": {
+    "timesteps_to_50pct_tracking": 591400,
+    "timesteps_to_10pct_crashes": null
+  }
+}
