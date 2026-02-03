@@ -150,6 +150,11 @@ def main() -> None:
         action="store_true",
         help="Use stochastic actions",
     )
+    parser.add_argument(
+        "--no-normalize",
+        action="store_true",
+        help="Disable VecNormalize even if available",
+    )
 
     args = parser.parse_args()
     deterministic = not args.stochastic
@@ -179,6 +184,8 @@ def main() -> None:
         args.model,
         env_factory=lambda: YawTrackingEnv(config=config),
     )
+    if args.no_normalize and vec_normalize is not None:
+        vec_normalize = None
 
     video_writer = None
     if record_video:
@@ -199,7 +206,10 @@ def main() -> None:
     print(f"Episodes: {args.episodes}")
     print(f"Patterns: {args.patterns}")
     print(f"Target speed: {args.target_speed_min}-{args.target_speed_max} rad/s")
-    print(f"VecNormalize: {'Yes' if vec_normalize else 'No'}")
+    vecnorm_label = "Yes" if vec_normalize else "No"
+    if args.no_normalize:
+        vecnorm_label = "No (disabled)"
+    print(f"VecNormalize: {vecnorm_label}")
     print()
 
     metrics = []

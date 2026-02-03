@@ -220,6 +220,12 @@ python scripts/visualize_mujoco.py \
     --target-speed-min 0.05 \
     --target-speed-max 0.1 \
     --output runs/visualizations/demo.mp4
+
+# Debug raw observations (skip VecNormalize)
+python scripts/visualize_mujoco.py \
+    --mode interactive \
+    --model runs/<run_name>/best_model \
+    --no-normalize
 ```
 
 ### Mega Visualization System
