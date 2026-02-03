@@ -8,6 +8,9 @@ This guide explains how to train neural network controllers for drone control.
 # Train yaw tracking (default settings)
 python scripts/train_yaw_tracker.py
 
+# Train with detailed analytics + VecNormalize (recommended for deployment)
+python scripts/train_with_analysis.py
+
 # Train with custom timesteps
 python scripts/train_yaw_tracker.py --timesteps 1000000
 
@@ -65,7 +68,8 @@ python scripts/train_setpoint.py \
 environment:
   hover_height: 1.0           # Target altitude (m)
   max_episode_steps: 1000     # Max steps per episode
-  max_yaw_rate: 2.0           # Max yaw rate (rad/s)
+  max_yaw_rate: 1.0           # Max yaw rate (rad/s)
+  action_dead_zone: 0.08      # Dead zone for small actions
   
   # Target motion
   target_patterns:
@@ -77,15 +81,14 @@ environment:
   target_speed_max: 0.3     # Max angular velocity (rad/s)
   target_radius: 3.0        # Distance from drone (m)
   
-  # Reward weights
-  reward:
-    facing_weight: 1.0      # Reward for facing target
-    action_penalty: 0.1     # Penalty for large actions
-    action_rate_penalty: 0.05  # Penalty for jerky actions
-    tracking_bonus: 0.5     # Bonus for sustained tracking
+  # Reward weights (see config for full list)
+  rewards:
+    facing_reward_weight: 1.5
+    action_rate_penalty_weight: 0.03
+    sustained_tracking_bonus: 0.3
   
   # Termination conditions
-  max_tilt_angle: 1.0       # Max roll/pitch before reset (rad)
+  max_tilt_angle: 0.6       # Max roll/pitch before reset (rad)
   max_altitude_error: 2.0   # Max height deviation (m)
 ```
 
@@ -155,9 +158,18 @@ python scripts/train_yaw_tracker.py \
     --timesteps 1000000 \                 # Training steps
     --n-envs 8 \                          # Parallel envs
     --seed 42 \                           # Random seed
-    --run-name my_experiment \            # Experiment name
-    --resume runs/previous/final_model    # Resume training
+    --device auto                         # cpu/cuda/auto
 ```
+
+### `train_with_analysis.py`
+
+Detailed training with analytics, evaluation plots, and `vec_normalize.pkl`:
+
+```bash
+python scripts/train_with_analysis.py
+```
+
+Default total timesteps in this script are **3,000,000** (adjust in script if needed).
 
 ### Output Structure
 
@@ -167,15 +179,21 @@ runs/yaw_tracking_20260123_120000/
 ├── best_model/
 │   └── best_model.zip    # Best model (by eval reward)
 ├── final_model.zip       # Final model
+├── vec_normalize.pkl     # Observation normalization (train_with_analysis.py)
 ├── checkpoints/
 │   ├── yaw_tracker_25000_steps.zip
 │   ├── yaw_tracker_50000_steps.zip
 │   └── ...
 ├── eval_logs/
 │   └── evaluations.npz   # Evaluation history
+├── analytics/            # Detailed per-episode analytics (train_with_analysis.py)
+│   └── training_analytics.jsonl
 └── tensorboard/
     └── PPO_1/            # TensorBoard logs
 ```
+
+Note: `train_yaw_tracker.py` does not write `vec_normalize.pkl`. Use
+`train_with_analysis.py` for deployment-ready runs (includes normalization stats).
 
 ## Monitoring Training
 

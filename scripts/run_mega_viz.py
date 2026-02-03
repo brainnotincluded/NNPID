@@ -6,9 +6,9 @@ and displays all visualization components: 3D scene objects, neural network
 visualization, telemetry HUD, and perturbation effects.
 
 Usage:
-    python scripts/run_mega_viz.py --model runs/best_model.zip
-    python scripts/run_mega_viz.py --model runs/best_model.zip --perturbations config/perturbations.yaml
-    python scripts/run_mega_viz.py --model runs/best_model.zip --record output.mp4
+    python scripts/run_mega_viz.py --model runs/<run_name>/best_model
+    python scripts/run_mega_viz.py --model runs/<run_name>/best_model --perturbations config/perturbations.yaml
+    python scripts/run_mega_viz.py --model runs/<run_name>/best_model --record output.mp4
     python scripts/run_mega_viz.py --no-model --viz-mode minimal
 """
 
@@ -20,6 +20,8 @@ import time
 from pathlib import Path
 
 import numpy as np
+
+from src.deployment.model_loading import load_model_and_vecnormalize
 
 try:
     import cv2
@@ -35,40 +37,6 @@ try:
     IMAGEIO_AVAILABLE = True
 except ImportError:
     IMAGEIO_AVAILABLE = False
-
-
-def load_model(model_path: str | None):
-    """Load stable-baselines3 model.
-
-    Args:
-        model_path: Path to model, or None to use random actions
-
-    Returns:
-        Model or None
-    """
-    if model_path is None:
-        return None
-
-    path = Path(model_path)
-    if not path.exists():
-        print(f"Warning: Model not found: {model_path}")
-        return None
-
-    try:
-        from stable_baselines3 import PPO, SAC
-
-        try:
-            model = PPO.load(model_path)
-            print(f"Loaded PPO model from {model_path}")
-        except Exception:
-            model = SAC.load(model_path)
-            print(f"Loaded SAC model from {model_path}")
-
-        return model
-
-    except ImportError:
-        print("Warning: stable-baselines3 not available")
-        return None
 
 
 def load_perturbations(config_path: str | None):
@@ -152,21 +120,6 @@ def run_visualization(args):
     from src.environments import YawTrackingConfig, YawTrackingEnv
     from src.utils.rotations import Rotations
 
-    # Load model
-    model = load_model(args.model)
-
-    # Load perturbations
-    perturbation_manager = load_perturbations(args.perturbations)
-
-    # Create visualizer
-    visualizer = create_visualizer(args.viz_mode)
-
-    if model is not None:
-        visualizer.set_model(model)
-
-    if perturbation_manager is not None:
-        visualizer.set_perturbation_manager(perturbation_manager)
-
     # Create environment config
     env_config = YawTrackingConfig(
         hover_height=args.hover_height,
@@ -180,6 +133,33 @@ def run_visualization(args):
         config=env_config,
         render_mode="rgb_array",
     )
+
+    # Load model + VecNormalize
+    model = None
+    vec_normalize = None
+    if args.model:
+        try:
+            model, vec_normalize, resolved = load_model_and_vecnormalize(
+                args.model,
+                env_factory=lambda: YawTrackingEnv(config=env_config),
+            )
+            print(f"Loaded model from {resolved}")
+        except Exception as exc:
+            print(f"Warning: Failed to load model: {exc}")
+            model = None
+            vec_normalize = None
+
+    # Load perturbations
+    perturbation_manager = load_perturbations(args.perturbations)
+
+    # Create visualizer
+    visualizer = create_visualizer(args.viz_mode)
+
+    if model is not None:
+        visualizer.set_model(model)
+
+    if perturbation_manager is not None:
+        visualizer.set_perturbation_manager(perturbation_manager)
 
     print("\nStarting visualization...")
     print(f"  Model: {args.model if args.model else 'Random policy'}")
@@ -243,7 +223,11 @@ def run_visualization(args):
 
                 # Get action
                 if model is not None:
-                    action, _ = model.predict(obs, deterministic=True)
+                    obs_for_model = obs
+                    if vec_normalize is not None:
+                        obs_vec = vec_normalize.normalize_obs(obs.reshape(1, -1))
+                        obs_for_model = obs_vec[0]
+                    action, _ = model.predict(obs_for_model, deterministic=True)
                 else:
                     action = env.action_space.sample()
 
@@ -356,9 +340,9 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  %(prog)s --model runs/best_model.zip
-  %(prog)s --model runs/best_model.zip --perturbations config/perturbations.yaml
-  %(prog)s --model runs/best_model.zip --record output.mp4 --episodes 3
+  %(prog)s --model runs/<run_name>/best_model
+  %(prog)s --model runs/<run_name>/best_model --perturbations config/perturbations.yaml
+  %(prog)s --model runs/<run_name>/best_model --record output.mp4 --episodes 3
   %(prog)s --no-model --viz-mode minimal
         """,
     )

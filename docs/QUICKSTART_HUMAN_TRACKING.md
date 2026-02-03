@@ -119,7 +119,7 @@ python src/webots/webots_human_tracker.py \
     --tracking-port PORT    # UDP port for Webots data (default: 9100)
     --altitude METERS       # Takeoff altitude (default: 3.0)
     --duration SECONDS      # Tracking duration (default: 300)
-    --max-yaw-rate RAD/S    # Max yaw rate (default: 1.5)
+    --max-yaw-rate RAD/S    # Max yaw rate (default: 1.5, set to match training)
 ```
 
 ## Troubleshooting

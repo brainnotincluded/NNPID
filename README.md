@@ -35,6 +35,10 @@ python scripts/train_yaw_tracker.py --timesteps 500000
 # Evaluate trained model
 python scripts/evaluate_yaw_tracker.py --model runs/<run_name>/best_model
 
+# Visualize (interactive or video)
+python scripts/visualize_mujoco.py --mode interactive --model runs/<run_name>/best_model
+python scripts/visualize_mujoco.py --mode video --model runs/<run_name>/best_model --output runs/visualizations/demo.mp4
+
 # List available runs
 ls runs/
 ```
@@ -81,6 +85,7 @@ NNPID/
 ├── scripts/               # Executable scripts
 │   ├── train_yaw_tracker.py       # Train yaw tracking
 │   ├── evaluate_yaw_tracker.py    # Evaluate models
+│   ├── visualize_mujoco.py        # Unified MuJoCo visualization
 │   ├── run_mega_viz.py            # Full visualization
 │   ├── model_inspector.py         # CLI model analysis
 │   ├── run_ardupilot_sim.py       # Run with ArduPilot SITL
@@ -141,8 +146,8 @@ from src.controllers import PIDController, NNController
 pid = PIDController(kp=1.0, kd=0.1)
 
 # Neural network (trained)
-nn = NNController.load("runs/<run_name>/best_model")
-action = nn.predict(observation)
+nn = NNController(model_path="runs/<run_name>/best_model")
+action = nn.compute_action(observation)
 ```
 
 ### 4. ArduPilot SITL Integration
@@ -185,6 +190,8 @@ environment:
   target_patterns: ["circular", "random"]
   target_speed_min: 0.1
   target_speed_max: 0.3
+  max_yaw_rate: 1.0
+  action_dead_zone: 0.08
 
 training:
   algorithm: PPO
@@ -197,17 +204,35 @@ training:
 
 ## Visualization
 
+### Unified MuJoCo Visualization
+
+Use the unified CLI for interactive or video visualization:
+
+```bash
+# Interactive viewer
+python scripts/visualize_mujoco.py --mode interactive --model runs/<run_name>/best_model
+
+# Record video
+python scripts/visualize_mujoco.py \
+    --mode video \
+    --model runs/<run_name>/best_model \
+    --patterns circular sinusoidal \
+    --target-speed-min 0.05 \
+    --target-speed-max 0.1 \
+    --output runs/visualizations/demo.mp4
+```
+
 ### Mega Visualization System
 
 Run full visualization with all effects:
 
 ```bash
 # Run with trained model
-python scripts/run_mega_viz.py --model runs/<run_name>/best_model/best_model.zip
+python scripts/run_mega_viz.py --model runs/<run_name>/best_model
 
 # With perturbations and video recording
 python scripts/run_mega_viz.py \
-    --model runs/<run_name>/best_model/best_model.zip \
+    --model runs/<run_name>/best_model \
     --perturbations config/perturbations.yaml \
     --record output.mp4
 ```
@@ -262,6 +287,8 @@ python scripts/run_yaw_tracker_sitl.py \
     --model runs/<run_name>/best_model \
     --connection udp:127.0.0.1:14550
 ```
+
+Note: For correct inference, `vec_normalize.pkl` must exist in the run directory.
 
 ## Requirements
 

@@ -3,6 +3,10 @@
 
 Usage:
     mjpython scripts/view_trained_model.py --model path/to/model.zip --pattern circular
+
+Note: This script uses the native MuJoCo viewer. For a unified CLI (interactive + video),
+prefer:
+    python scripts/visualize_mujoco.py --mode interactive --model runs/<run_name>/best_model
 """
 
 import argparse
@@ -17,8 +21,7 @@ import numpy as np
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from stable_baselines3 import PPO
-
+from src.deployment.model_loading import load_model_and_vecnormalize
 from src.environments.yaw_tracking_env import YawTrackingConfig, YawTrackingEnv
 
 
@@ -52,11 +55,6 @@ def main():
     print(f"Speed: {args.speed} rad/s")
     print()
 
-    # Load model
-    print("Loading trained model...")
-    model = PPO.load(args.model)
-    print("✓ Model loaded")
-
     # Create environment
     config = YawTrackingConfig(
         model="generic",
@@ -67,6 +65,14 @@ def main():
         max_episode_steps=3000,  # 60 seconds
     )
     env = YawTrackingEnv(config=config)
+
+    # Load model + VecNormalize
+    print("Loading trained model...")
+    model, vec_normalize, resolved = load_model_and_vecnormalize(
+        args.model,
+        env_factory=lambda: YawTrackingEnv(config=config),
+    )
+    print(f"✓ Model loaded from {resolved}")
 
     print("\nStarting visualization...")
     print("Controls:")
@@ -88,8 +94,14 @@ def main():
         episode_reward = 0.0
 
         while viewer.is_running():
+            # Normalize observation if needed
+            obs_for_model = obs
+            if vec_normalize is not None:
+                obs_vec = vec_normalize.normalize_obs(obs.reshape(1, -1))
+                obs_for_model = obs_vec[0]
+
             # Get action from policy
-            action, _states = model.predict(obs, deterministic=True)
+            action, _states = model.predict(obs_for_model, deterministic=True)
 
             # Step environment
             obs, reward, terminated, truncated, info = env.step(action)

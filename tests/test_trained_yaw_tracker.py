@@ -61,66 +61,33 @@ class TestTrainedYawTracker:
         with pytest.raises(FileNotFoundError):
             TrainedYawTracker.from_path("nonexistent/path/model.zip")
 
-    @patch("src.deployment.trained_yaw_tracker.PPO")
-    def test_from_path_loads_model(self, mock_ppo_class):
+    @patch("src.deployment.trained_yaw_tracker.load_model_and_vecnormalize")
+    def test_from_path_loads_model(self, mock_loader):
         """Test from_path loads model correctly."""
         # Setup mock
         mock_obs_space = MagicMock()
         mock_obs_space.shape = (11,)
         mock_model = MagicMock(spec=PPO)
         mock_model.observation_space = mock_obs_space
-        mock_ppo_class.load.return_value = mock_model
+        mock_loader.return_value = (mock_model, None, Path("test_model.zip"))
 
-        # Create temporary model file
-        import tempfile
-        import zipfile
+        tracker = TrainedYawTracker.from_path("test_model.zip")
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            model_path = Path(tmpdir) / "test_model.zip"
-            # Create empty zip file
-            with zipfile.ZipFile(model_path, "w") as zf:
-                zf.writestr("dummy", "dummy")
+        assert tracker.model == mock_model
+        assert tracker.observation_space == 11
 
-            # Mock PPO.load to return our mock
-            with patch("src.deployment.trained_yaw_tracker.PPO.load", return_value=mock_model):
-                tracker = TrainedYawTracker.from_path(str(model_path))
-
-            assert tracker.model == mock_model
-            assert tracker.observation_space == 11
-
-    @patch("stable_baselines3.common.env_util.make_vec_env")
-    @patch("src.deployment.trained_yaw_tracker.VecNormalize")
-    @patch("src.deployment.trained_yaw_tracker.PPO")
-    def test_from_path_loads_vec_normalize(
-        self, mock_ppo_class, mock_vec_norm_class, mock_make_vec_env
-    ):
+    @patch("src.deployment.trained_yaw_tracker.load_model_and_vecnormalize")
+    def test_from_path_loads_vec_normalize(self, mock_loader):
         """Test from_path loads VecNormalize when available."""
         mock_obs_space = MagicMock()
         mock_obs_space.shape = (11,)
         mock_model = MagicMock(spec=PPO)
         mock_model.observation_space = mock_obs_space
-        mock_ppo_class.load.return_value = mock_model
-
         mock_vec_norm = MagicMock(spec=VecNormalize)
-        mock_vec_norm_class.load.return_value = mock_vec_norm
-        mock_make_vec_env.return_value = MagicMock()
+        mock_vec_norm.training = False
+        mock_loader.return_value = (mock_model, mock_vec_norm, Path("test_model.zip"))
 
-        import tempfile
-        import zipfile
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            run_dir = Path(tmpdir) / "run_test"
-            model_dir = run_dir / "best_model"
-            model_dir.mkdir(parents=True)
-
-            model_path = model_dir / "best_model.zip"
-            with zipfile.ZipFile(model_path, "w") as zf:
-                zf.writestr("dummy", "dummy")
-
-            vec_norm_path = run_dir / "vec_normalize.pkl"
-            vec_norm_path.write_bytes(b"dummy")
-
-            tracker = TrainedYawTracker.from_path(str(model_dir))
+        tracker = TrainedYawTracker.from_path("test_model.zip")
 
         assert tracker.vec_normalize == mock_vec_norm
         assert tracker.vec_normalize.training is False

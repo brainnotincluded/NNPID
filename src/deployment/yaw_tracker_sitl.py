@@ -24,7 +24,6 @@ except ImportError:
     mavutil = None
 
 try:
-    from stable_baselines3 import PPO, SAC
     from stable_baselines3.common.base_class import BaseAlgorithm
 
     SB3_AVAILABLE = True
@@ -32,6 +31,7 @@ except ImportError:
     SB3_AVAILABLE = False
 
 from ..utils.logger import get_logger
+from .model_loading import find_vec_normalize_path, load_sb3_model, resolve_model_path
 from ..utils.rotations import Rotations
 
 logger = get_logger(__name__)
@@ -163,51 +163,27 @@ class YawTrackerSITL:
             logger.warning("stable-baselines3 not available, model not loaded")
             return
 
-        model_path = Path(model_path)
-        original_path = model_path
-
-        # Handle directory or file
-        if model_path.is_dir():
-            for name in ["best_model.zip", "final_model.zip", "best_model", "final_model"]:
-                candidate = model_path / name
-                if candidate.exists():
-                    model_path = candidate
-                    break
-
-        if not model_path.suffix:
-            model_path = model_path.with_suffix(".zip")
-
-        logger.info("Loading model from %s", model_path)
-
         try:
-            self.model = PPO.load(str(model_path))
-        except Exception:
-            try:
-                self.model = SAC.load(str(model_path))
-            except Exception as e:
-                logger.error("Error loading model: %s", e)
-                return
+            resolved = resolve_model_path(model_path)
+            logger.info("Loading model from %s", resolved)
+            self.model = load_sb3_model(resolved)
+        except Exception as e:
+            logger.error("Error loading model: %s", e)
+            return
 
         # Try to load VecNormalize (CRITICAL for correct inference!)
         self._vec_normalize = None
-        vec_norm_paths = [
-            model_path.parent.parent / "vec_normalize.pkl",  # runs/xxx/vec_normalize.pkl
-            model_path.parent / "vec_normalize.pkl",  # runs/xxx/best_model/vec_normalize.pkl
-            original_path / "vec_normalize.pkl",  # If original was directory
-        ]
+        vec_norm_path = find_vec_normalize_path(resolved)
+        if vec_norm_path is not None:
+            try:
+                import pickle
 
-        for vec_norm_path in vec_norm_paths:
-            if vec_norm_path.exists():
-                try:
-                    import pickle
-
-                    with open(vec_norm_path, "rb") as f:
-                        self._vec_normalize = pickle.load(f)
-                    self._vec_normalize.training = False
-                    logger.info("Loaded VecNormalize from %s", vec_norm_path)
-                    break
-                except Exception as e:
-                    logger.warning("Could not load VecNormalize: %s", e)
+                with open(vec_norm_path, "rb") as f:
+                    self._vec_normalize = pickle.load(f)
+                self._vec_normalize.training = False
+                logger.info("Loaded VecNormalize from %s", vec_norm_path)
+            except Exception as e:
+                logger.warning("Could not load VecNormalize: %s", e)
 
         if self._vec_normalize is None:
             logger.warning("VecNormalize not found - model may produce incorrect results")

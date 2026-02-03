@@ -51,8 +51,9 @@ pip install pymavlink opencv-python
 # First run only: install Webots controllers
 scripts/shell/setup_controllers.sh
 
-# Ensure you have the trained model
-ls runs/<run_name>/best_model/best_model.zip
+# Ensure you have the trained model + VecNormalize
+ls runs/<run_name>/best_model
+ls runs/<run_name>/vec_normalize.pkl
 ```
 
 ### 2. Start Webots

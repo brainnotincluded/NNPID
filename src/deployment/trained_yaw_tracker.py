@@ -19,7 +19,6 @@ if Path(__file__).parent.parent.parent not in sys.path:
     sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 try:
-    from stable_baselines3 import PPO
     from stable_baselines3.common.base_class import BaseAlgorithm
     from stable_baselines3.common.vec_env import VecNormalize
 
@@ -27,8 +26,10 @@ try:
 except ImportError:
     SB3_AVAILABLE = False
     BaseAlgorithm = Any  # type: ignore
+    VecNormalize = Any  # type: ignore
 
 from ..environments.yaw_tracking_env import YawTrackingConfig, YawTrackingEnv
+from .model_loading import load_model_and_vecnormalize
 
 logger = get_logger(__name__)
 
@@ -112,6 +113,7 @@ class TrainedYawTracker:
             model_path: Path to model directory or .zip file
                 - If directory: searches for best_model.zip or final_model.zip
                 - If file: loads directly
+                - Also supports runs/<run_name>/best_model/ directories
             config: Optional environment configuration (uses training config if None)
 
         Returns:
@@ -136,70 +138,25 @@ class TrainedYawTracker:
                 "stable-baselines3 is required. Install with: pip install stable-baselines3"
             )
 
-        model_path = Path(model_path)
+        env_config = config or YawTrackingConfig()
 
-        # Handle directory
-        if model_path.is_dir():
-            # Look for best_model.zip or final_model.zip
-            for name in ["best_model.zip", "final_model.zip", "best_model", "final_model"]:
-                candidate = model_path / name
-                if candidate.exists():
-                    model_path = candidate
-                    break
-            else:
-                # Try direct directory
-                if (model_path / "best_model.zip").exists():
-                    model_path = model_path / "best_model.zip"
-                elif (model_path / "final_model.zip").exists():
-                    model_path = model_path / "final_model.zip"
-                else:
-                    raise FileNotFoundError(f"No model found in {model_path}")
-
-        # Add .zip if needed
-        if not model_path.suffix:
-            model_path = model_path.with_suffix(".zip")
-
-        if not model_path.exists():
-            raise FileNotFoundError(f"Model not found at {model_path}")
-
-        # Load model with custom_objects to handle Python version mismatch
-        # When model is trained on different Python version, lambda functions
-        # (clip_range, lr_schedule) cannot be deserialized due to bytecode changes.
-        # We provide default implementations that work for inference.
-        custom_objects = {
-            "clip_range": lambda _: 0.2,  # Default PPO clip range
-            "lr_schedule": lambda _: 0.0003,  # Default learning rate (unused for inference)
-        }
         try:
-            model = PPO.load(str(model_path), custom_objects=custom_objects)
+            model, vec_normalize, _ = load_model_and_vecnormalize(
+                model_path,
+                env_factory=lambda: YawTrackingEnv(config=env_config),
+            )
         except Exception as e:
+            if isinstance(e, FileNotFoundError):
+                raise
             raise ValueError(f"Failed to load model from {model_path}: {e}") from e
 
-        # Try to load VecNormalize
-        vec_normalize = None
-        vec_norm_path = model_path.parent.parent / "vec_normalize.pkl"
-        if not vec_norm_path.exists():
-            vec_norm_path = model_path.parent / "vec_normalize.pkl"
-
-        if vec_norm_path.exists():
-            try:
-                # Create dummy env for VecNormalize
-                from stable_baselines3.common.env_util import make_vec_env
-
-                env_config = config or YawTrackingConfig()
-                dummy_vec_env = make_vec_env(lambda: YawTrackingEnv(config=env_config), n_envs=1)
-                vec_normalize = VecNormalize.load(str(vec_norm_path), dummy_vec_env)
-                vec_normalize.training = False
-            except Exception as e:
-                logger.warning("Could not load VecNormalize: %s", e)
-
-        return cls(model=model, vec_normalize=vec_normalize, config=config)
+        return cls(model=model, vec_normalize=vec_normalize, config=env_config)
 
     def predict(
         self,
         observation: np.ndarray,
         deterministic: bool = True,
-        dead_zone: float = 0.05,
+        dead_zone: float | None = None,
     ) -> float:
         """Predict yaw rate command from observation.
 
@@ -224,7 +181,8 @@ class TrainedYawTracker:
             deterministic: If True, use deterministic policy (default: True)
                 - True: Consistent behavior for deployment
                 - False: Stochastic for exploration/testing
-            dead_zone: Commands below this threshold are zeroed (default: 0.05)
+            dead_zone: Commands below this threshold are zeroed.
+                - None: uses config.action_dead_zone
                 - Prevents jitter around target
                 - Set to 0.0 to disable
 
@@ -272,6 +230,9 @@ class TrainedYawTracker:
         yaw_rate_cmd = float(action[0]) if len(action) > 0 else 0.0
 
         # Apply dead zone - zero out small commands to prevent jitter
+        if dead_zone is None:
+            dead_zone = getattr(self.config, "action_dead_zone", 0.0)
+
         if dead_zone > 0 and abs(yaw_rate_cmd) < dead_zone:
             yaw_rate_cmd = 0.0
 

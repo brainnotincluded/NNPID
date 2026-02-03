@@ -10,8 +10,8 @@ Architecture:
 
 Usage:
     1. Start Webots with iris_camera_human.wbt
-    2. Start ArduPilot SITL: ./run_sitl.sh (or sim_vehicle.py -v ArduCopter -f JSON)
-    3. Run this script: python webots_human_tracker.py --model runs/analysis_20260126_150455/best_model
+    2. Start ArduPilot SITL: scripts/shell/run_sitl.sh (or sim_vehicle.py -v ArduCopter -f JSON)
+    3. Run this script: python src/webots/webots_human_tracker.py --model runs/<run_name>/best_model
 """
 
 from __future__ import annotations
@@ -208,7 +208,7 @@ class WebotsHumanTracker:
         print("\n📡 Connecting to ArduPilot SITL...")
         if not self.tracker.connect():
             print("❌ Failed to connect to SITL")
-            print("   Make sure SITL is running: ./run_sitl.sh")
+            print("   Make sure SITL is running: scripts/shell/run_sitl.sh")
             return
 
         print("✅ Connected to SITL")

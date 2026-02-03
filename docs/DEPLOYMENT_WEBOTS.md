@@ -87,16 +87,15 @@ Use `runs/<run_name>/best_model` as the model path, and ensure
 ### How to Use VecNormalize
 
 ```python
-import pickle
-from pathlib import Path
 import numpy as np
-from stable_baselines3 import PPO
+from src.deployment.model_loading import load_model_and_vecnormalize
+from src.environments.yaw_tracking_env import YawTrackingConfig, YawTrackingEnv
 
 # Load model and VecNormalize
-model = PPO.load("path/to/best_model.zip")
-
-with open("path/to/vec_normalize.pkl", "rb") as f:
-    vec_normalize = pickle.load(f)
+model, vec_normalize, _ = load_model_and_vecnormalize(
+    "path/to/best_model",
+    env_factory=lambda: YawTrackingEnv(config=YawTrackingConfig()),
+)
 
 # Get observation from environment
 obs = env.reset()[0]  # Shape: (11,)
@@ -114,7 +113,10 @@ The evaluation and deployment scripts automatically load VecNormalize if it exis
 
 ```python
 # Automatically checks for vec_normalize.pkl in parent directory
-model, vec_normalize = load_model_and_vecnorm("path/to/best_model")
+model, vec_normalize, _ = load_model_and_vecnormalize(
+    "path/to/best_model",
+    env_factory=lambda: YawTrackingEnv(config=YawTrackingConfig()),
+)
 
 # If vec_normalize is None, normalization is skipped
 if vec_normalize is not None:
@@ -139,6 +141,12 @@ python scripts/run_model_mujoco.py \
     --model runs/<run_name>/best_model \
     --episodes 1 \
     --output flight_log.json
+
+# Render a quick demo video
+python scripts/visualize_mujoco.py \
+    --mode video \
+    --model runs/<run_name>/best_model \
+    --output runs/visualizations/demo.mp4
 ```
 
 Output log includes:
@@ -198,7 +206,10 @@ If you need tighter integration with Webots, create a custom bridge:
 # pseudocode
 class WebotsSITLBridge:
     def __init__(self, model_path, sitl_address):
-        self.model, self.vec_normalize = load_model_and_vecnorm(model_path)
+        self.model, self.vec_normalize, _ = load_model_and_vecnormalize(
+            model_path,
+            env_factory=lambda: YawTrackingEnv(config=YawTrackingConfig()),
+        )
         self.mav = mavutil.mavlink_connection(f'tcp:{sitl_address}:5760')
         self.webots_supervisor = Supervisor()
         

@@ -21,6 +21,7 @@ from typing import Any
 
 import numpy as np
 
+from src.deployment.model_loading import load_sb3_model, resolve_model_path
 try:
     import torch
 
@@ -46,26 +47,13 @@ def load_model(model_path: str):
     Returns:
         Loaded model
     """
-    path = Path(model_path)
-    if not path.exists():
-        print(f"Error: Model file not found: {model_path}")
-        sys.exit(1)
-
     try:
-        from stable_baselines3 import PPO, SAC
-
-        # Try PPO first, then SAC
-        try:
-            model = PPO.load(model_path)
-            print(f"Loaded PPO model from {model_path}")
-        except Exception:
-            model = SAC.load(model_path)
-            print(f"Loaded SAC model from {model_path}")
-
+        resolved = resolve_model_path(model_path)
+        model = load_sb3_model(resolved)
+        print(f"Loaded model from {resolved}")
         return model
-
-    except ImportError:
-        print("Error: stable-baselines3 not installed")
+    except Exception as exc:
+        print(f"Error: {exc}")
         sys.exit(1)
 
 

@@ -1,5 +1,8 @@
 # Mega Training Session - 20M Timesteps
 
+> Note: This document is a historical training log. For current defaults and
+> recommended scripts, see `docs/TRAINING.md`.
+
 **Started:** 2026-01-26 02:12:46  
 **Run Directory:** `runs/yaw_tracking_20260126_021246`  
 **Status:** 🟢 RUNNING
@@ -115,7 +118,7 @@ print(f'Reward: {np.mean(data[\"results\"][-1]):.2f}')
 
 ### Model Checkpoints
 - `checkpoints/yaw_tracker_<steps>_steps.zip` - Periodic checkpoints
-- `best_model/best_model.zip` - Best performing model
+- `best_model/` (contains `best_model.zip`) - Best performing model
 - `final_model.zip` - Final trained model (after 20M steps)
 
 ### Logs

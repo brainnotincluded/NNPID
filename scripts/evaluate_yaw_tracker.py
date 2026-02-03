@@ -24,7 +24,6 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 try:
-    from stable_baselines3 import PPO, SAC
     from stable_baselines3.common.base_class import BaseAlgorithm
     from stable_baselines3.common.vec_env import VecNormalize
 
@@ -34,10 +33,8 @@ except ImportError:
     print("Warning: stable-baselines3 not installed")
 
 
-from src.environments.yaw_tracking_env import (
-    YawTrackingConfig,
-    YawTrackingEnv,
-)
+from src.deployment.model_loading import load_model_and_vecnormalize
+from src.environments.yaw_tracking_env import YawTrackingConfig, YawTrackingEnv
 
 
 @dataclass
@@ -64,51 +61,6 @@ class EpisodeMetrics:
 
     # Termination
     crashed: bool = False
-
-
-def load_model(model_path: Path) -> BaseAlgorithm | None:
-    """Load trained model.
-
-    Args:
-        model_path: Path to model file or directory
-
-    Returns:
-        Loaded model or None if failed
-    """
-    if not SB3_AVAILABLE:
-        print("Error: stable-baselines3 required to load models")
-        return None
-
-    # Handle directory or file
-    if model_path.is_dir():
-        # Look for best_model.zip or final_model.zip
-        for name in ["best_model.zip", "final_model.zip", "best_model", "final_model"]:
-            candidate = model_path / name
-            if candidate.exists():
-                model_path = candidate
-                break
-
-    # Add .zip if needed
-    if not model_path.suffix:
-        model_path = model_path.with_suffix(".zip")
-
-    if not model_path.exists():
-        print(f"Error: Model not found at {model_path}")
-        return None
-
-    print(f"Loading model from {model_path}")
-
-    # Try PPO first, then SAC
-    try:
-        return PPO.load(str(model_path))
-    except Exception:
-        pass
-
-    try:
-        return SAC.load(str(model_path))
-    except Exception as e:
-        print(f"Error loading model: {e}")
-        return None
 
 
 def evaluate_episode(
@@ -189,7 +141,8 @@ def evaluate_episode(
 
         # Response time (first time acquiring target)
         if is_tracking and first_tracking_time is None:
-            first_tracking_time = metrics.episode_length * 0.02  # Assuming 50Hz
+            dt = 1.0 / getattr(env.config, "control_frequency", 50.0)
+            first_tracking_time = metrics.episode_length * dt
 
         # Render
         if render:
@@ -430,19 +383,11 @@ def evaluate(
     Returns:
         List of episode metrics
     """
-    # Load model
-    model = load_model(model_path)
-    if model is None:
+    if not SB3_AVAILABLE:
+        print("Error: stable-baselines3 required to load models")
         return []
 
-    # Try to load VecNormalize if available
-    vec_normalize = None
-    model_dir = model_path.parent if model_path.is_file() else model_path
-    vec_norm_path = model_dir.parent / "vec_normalize.pkl"
-    if not vec_norm_path.exists():
-        vec_norm_path = model_dir / "vec_normalize.pkl"
-
-    # Create environment with same config as training
+    # Create environment config (same defaults as training)
     config = YawTrackingConfig(
         target_patterns=["circular"] if patterns is None else patterns,
         target_speed_min=0.05,
@@ -472,17 +417,19 @@ def evaluate(
     render_mode = "rgb_array" if render else None
     env = YawTrackingEnv(config=config, render_mode=render_mode)
 
-    # Load VecNormalize if available
-    if vec_norm_path.exists():
-        try:
-            from stable_baselines3.common.env_util import make_vec_env
-
-            dummy_vec_env = make_vec_env(lambda: YawTrackingEnv(config=config), n_envs=1)
-            vec_normalize = VecNormalize.load(str(vec_norm_path), dummy_vec_env)
-            vec_normalize.training = False
-            print(f"Loaded VecNormalize from {vec_norm_path}")
-        except Exception as e:
-            print(f"Warning: Could not load VecNormalize: {e}")
+    # Load model and VecNormalize
+    try:
+        model, vec_normalize, resolved = load_model_and_vecnormalize(
+            model_path,
+            env_factory=lambda: YawTrackingEnv(config=config),
+        )
+        print(f"Loaded model from {resolved}")
+        if vec_normalize:
+            print("Loaded VecNormalize")
+    except Exception as exc:
+        print(f"Error loading model: {exc}")
+        env.close()
+        return []
 
     # Patterns to test
     test_patterns = patterns or all_patterns

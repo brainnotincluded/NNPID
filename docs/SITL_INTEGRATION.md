@@ -67,6 +67,12 @@ pip install pymavlink
 sim_vehicle.py -v ArduCopter -f JSON --console --map
 ```
 
+Convenience script (equivalent):
+
+```bash
+scripts/shell/run_sitl.sh
+```
+
 Options:
 - `-v ArduCopter`: Vehicle type (copter)
 - `-f JSON`: Use JSON interface for physics
@@ -117,6 +123,8 @@ python scripts/run_yaw_tracker_sitl.py \
     --duration 60 \
     --target-speed 0.2
 ```
+
+Note: `vec_normalize.pkl` must exist in the run directory for correct inference.
 
 The trained neural network will control the drone's yaw to track a simulated target.
 

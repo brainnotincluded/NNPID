@@ -642,7 +642,21 @@ MAVLink.send_attitude_target()
 ArduPilot executes
 ```
 
-### `scripts/run_mega_viz.py`
+### `scripts/visualize_mujoco.py`
+
+```python
+# Unified visualization flow:
+1. Load model + VecNormalize (auto)
+2. Build YawTrackingEnv with render_mode="rgb_array"
+3. For each step:
+   - Normalize obs (if VecNormalize)
+   - Predict action
+   - Step environment
+   - Render frame
+4. Interactive display and/or video output
+```
+
+### `scripts/run_mega_viz.py` (advanced)
 
 ```python
 # Full visualization script flow:

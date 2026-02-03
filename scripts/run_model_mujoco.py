@@ -13,6 +13,9 @@ This is useful for:
 - Preparing for Webots-SITL integration (understanding the data flow)
 - Debugging model behavior
 
+For visualization-only workflows (interactive or video), prefer:
+    python scripts/visualize_mujoco.py --model runs/<run_name>/best_model
+
 Usage:
     python scripts/run_model_mujoco.py --model runs/analysis_20260126_150455/best_model
     python scripts/run_model_mujoco.py --model runs/best_model --episodes 5 --steps 1000
@@ -31,16 +34,16 @@ from typing import Any
 
 import numpy as np
 
+import imageio
+
 # Add project root to path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 import logging
 
-from src.environments.yaw_tracking_env import (
-    YawTrackingConfig,
-    YawTrackingEnv,
-)
+from src.deployment.model_loading import load_model_and_vecnormalize
+from src.environments.yaw_tracking_env import YawTrackingConfig, YawTrackingEnv
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +73,9 @@ def run_episode(
     max_steps: int = 1000,
     render: bool = False,
     vec_normalize: Any = None,
+    video_writer: Any | None = None,
+    frame_skip: int = 2,
+    seed: int | None = None,
 ) -> tuple[dict, list]:
     """Run single episode and return metrics and step data.
 
@@ -84,7 +90,10 @@ def run_episode(
     Returns:
         Tuple of (episode_metrics, step_data_list)
     """
-    obs, info = env.reset()
+    if seed is None:
+        obs, info = env.reset()
+    else:
+        obs, info = env.reset(seed=seed)
     episode_reward = 0.0
     steps_data = []
     tracking_time = 0
@@ -133,7 +142,9 @@ def run_episode(
         steps_data.append(step_data)
 
         if render:
-            env.render()
+            frame = env.render()
+            if video_writer is not None and frame is not None and step % frame_skip == 0:
+                video_writer.append_data(frame)
 
         if done:
             if terminated:
@@ -152,57 +163,6 @@ def run_episode(
     }
 
     return metrics, steps_data
-
-
-def load_model_and_vecnorm(model_path: Path) -> tuple[Any, Any]:
-    """Load model and VecNormalize.
-
-    Returns:
-        Tuple of (model, vec_normalize)
-    """
-    import pickle
-
-    from stable_baselines3 import PPO, SAC
-    from stable_baselines3.common.vec_env import VecNormalize
-
-    model_path = Path(model_path)
-
-    # Handle directory or file
-    if model_path.is_dir():
-        for name in ["best_model.zip", "final_model.zip"]:
-            candidate = model_path / name
-            if candidate.exists():
-                model_path = candidate
-                break
-
-    if not model_path.suffix:
-        model_path = model_path.with_suffix(".zip")
-
-    logger.info(f"Loading model from {model_path}")
-
-    # Load model
-    model = None
-    try:
-        model = PPO.load(str(model_path))
-    except Exception:
-        try:
-            model = SAC.load(str(model_path))
-        except Exception as e:
-            logger.error(f"Failed to load model: {e}")
-            return None, None
-
-    # Load VecNormalize if exists
-    vec_normalize = None
-    vec_norm_path = model_path.parent.parent / "vec_normalize.pkl"
-    if vec_norm_path.exists():
-        try:
-            with open(vec_norm_path, "rb") as f:
-                vec_normalize = pickle.load(f)
-            logger.info(f"Loaded VecNormalize from {vec_norm_path}")
-        except Exception as e:
-            logger.warning(f"Failed to load VecNormalize: {e}")
-
-    return model, vec_normalize
 
 
 def main():
@@ -225,6 +185,25 @@ def main():
         help="Number of episodes to run",
     )
     parser.add_argument(
+        "--patterns",
+        type=str,
+        nargs="+",
+        default=None,
+        help="Target patterns to use (e.g. circular sinusoidal)",
+    )
+    parser.add_argument(
+        "--target-speed-min",
+        type=float,
+        default=None,
+        help="Minimum target angular speed (rad/s)",
+    )
+    parser.add_argument(
+        "--target-speed-max",
+        type=float,
+        default=None,
+        help="Maximum target angular speed (rad/s)",
+    )
+    parser.add_argument(
         "--steps",
         type=int,
         default=1000,
@@ -236,10 +215,34 @@ def main():
         help="Render MuJoCo visualization",
     )
     parser.add_argument(
+        "--video",
+        type=Path,
+        default=None,
+        help="Save rendered video to .mp4",
+    )
+    parser.add_argument(
+        "--fps",
+        type=int,
+        default=30,
+        help="Video fps (only with --video)",
+    )
+    parser.add_argument(
+        "--frame-skip",
+        type=int,
+        default=2,
+        help="Render every Nth frame (only with --video)",
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         default=None,
         help="Save detailed log to JSON file",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Random seed for env reset",
     )
     parser.add_argument(
         "--quiet",
@@ -249,20 +252,31 @@ def main():
 
     args = parser.parse_args()
 
-    # Load model
-    model, vec_normalize = load_model_and_vecnorm(args.model)
-    if model is None:
-        logger.error("Failed to load model")
-        sys.exit(1)
-
-    # Create environment
+    # Create environment config
     config = YawTrackingConfig()
-    env = YawTrackingEnv(config=config, render_mode="rgb_array" if args.render else None)
+    if args.patterns:
+        config.target_patterns = args.patterns
+    if args.target_speed_min is not None:
+        config.target_speed_min = args.target_speed_min
+    if args.target_speed_max is not None:
+        config.target_speed_max = args.target_speed_max
+    render_enabled = bool(args.render or args.video)
+    env = YawTrackingEnv(config=config, render_mode="rgb_array" if render_enabled else None)
+
+    # Load model + VecNormalize
+    try:
+        model, vec_normalize, resolved = load_model_and_vecnormalize(
+            args.model,
+            env_factory=lambda: YawTrackingEnv(config=config),
+        )
+    except Exception as exc:
+        logger.error("Failed to load model: %s", exc)
+        sys.exit(1)
 
     print("=" * 70)
     print("  Running Trained Model in MuJoCo")
     print("=" * 70)
-    print(f"Model: {args.model}")
+    print(f"Model: {resolved}")
     print(f"Episodes: {args.episodes}")
     print(f"Max steps per episode: {args.steps}")
     print(f"VecNormalize: {'Yes' if vec_normalize else 'No'}")
@@ -272,6 +286,10 @@ def main():
     all_metrics = []
     all_steps = []
 
+    video_writer = None
+    if args.video:
+        video_writer = imageio.get_writer(str(args.video), fps=args.fps, quality=8)
+
     for ep in range(args.episodes):
         print(f"Episode {ep + 1}/{args.episodes}...", end=" ", flush=True)
 
@@ -280,8 +298,11 @@ def main():
             model=model,
             episode_num=ep,
             max_steps=args.steps,
-            render=args.render,
+            render=render_enabled,
             vec_normalize=vec_normalize,
+            video_writer=video_writer,
+            frame_skip=max(1, args.frame_skip),
+            seed=args.seed + ep,
         )
 
         all_metrics.append(metrics)
@@ -294,6 +315,8 @@ def main():
         )
 
     env.close()
+    if video_writer is not None:
+        video_writer.close()
 
     # Summary
     print("\n" + "=" * 70)

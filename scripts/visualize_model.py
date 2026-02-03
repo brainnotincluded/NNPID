@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Interactive visualization of trained yaw tracking model in MuJoCo viewer."""
+"""Interactive visualization of trained yaw tracking model in MuJoCo viewer.
+
+Note: This script is kept for backward compatibility. Prefer:
+    python scripts/visualize_mujoco.py --mode interactive --model runs/<run_name>/best_model
+"""
 
 from __future__ import annotations
 
@@ -14,12 +18,12 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 try:
-    from stable_baselines3 import PPO
-    from stable_baselines3.common.vec_env import VecNormalize
+    import stable_baselines3  # noqa: F401
 except ImportError:
     print("Error: stable-baselines3 required")
     sys.exit(1)
 
+from src.deployment.model_loading import load_model_and_vecnormalize
 from src.environments.yaw_tracking_env import YawTrackingConfig, YawTrackingEnv
 
 # Try to import mujoco viewer (optional, we'll use gymnasium render if not available)
@@ -41,37 +45,6 @@ def load_model_and_env(model_path: Path):
     Returns:
         Tuple of (model, env, vec_normalize)
     """
-    # Handle directory
-    if model_path.is_dir():
-        # Look for best_model.zip
-        best_model = model_path / "best_model" / "best_model.zip"
-        if not best_model.exists():
-            best_model = model_path / "best_model.zip"
-        if not best_model.exists():
-            best_model = model_path / "final_model.zip"
-        if best_model.exists():
-            model_path = best_model
-        else:
-            print(f"Error: No model found in {model_path}")
-            return None, None, None
-
-    # Add .zip if needed
-    if not model_path.suffix:
-        model_path = model_path.with_suffix(".zip")
-
-    if not model_path.exists():
-        print(f"Error: Model not found at {model_path}")
-        return None, None, None
-
-    print(f"Loading model from {model_path}")
-
-    # Load model
-    try:
-        model = PPO.load(str(model_path))
-    except Exception as e:
-        print(f"Error loading model: {e}")
-        return None, None, None
-
     # Create environment (same config as training)
     config = YawTrackingConfig(
         target_patterns=["circular"],  # Start with simple pattern
@@ -86,27 +59,17 @@ def load_model_and_env(model_path: Path):
 
     env = YawTrackingEnv(config=config, render_mode="rgb_array")
 
-    # Try to load VecNormalize if available
-    vec_normalize = None
-    vec_norm_path = model_path.parent.parent / "vec_normalize.pkl"
-    if not vec_norm_path.exists():
-        # Try alternative path
-        vec_norm_path = model_path.parent / "vec_normalize.pkl"
-
-    if vec_norm_path.exists():
-        try:
-            # Create a dummy vectorized env for VecNormalize
-            from stable_baselines3.common.env_util import make_vec_env
-
-            dummy_vec_env = make_vec_env(lambda: YawTrackingEnv(config=config), n_envs=1)
-            vec_normalize = VecNormalize.load(str(vec_norm_path), dummy_vec_env)
-            vec_normalize.training = False  # Disable training mode
-            print(f"Loaded VecNormalize from {vec_norm_path}")
-        except Exception as e:
-            print(f"Warning: Could not load VecNormalize: {e}")
-            import traceback
-
-            traceback.print_exc()
+    try:
+        model, vec_normalize, resolved = load_model_and_vecnormalize(
+            model_path,
+            env_factory=lambda: YawTrackingEnv(config=config),
+        )
+        print(f"Loaded model from {resolved}")
+        if vec_normalize:
+            print("Loaded VecNormalize")
+    except Exception as e:
+        print(f"Error loading model: {e}")
+        return None, None, None
 
     return model, env, vec_normalize
 
@@ -148,7 +111,8 @@ def visualize_interactive(
     obs, info = env.reset(seed=seed, options=options)
 
     if vec_normalize:
-        obs = vec_normalize.normalize_obs(obs)
+        obs_vec = vec_normalize.normalize_obs(obs.reshape(1, -1))
+        obs = obs_vec[0]
 
     # Use matplotlib for visualization (works on all platforms)
     try:

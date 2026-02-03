@@ -43,8 +43,9 @@ python scripts/train_yaw_tracker.py --config config/yaw_tracking.yaml
 python scripts/evaluate_yaw_tracker.py --model runs/<run_name>/best_model
 
 # Visualization
-python scripts/run_mega_viz.py --model runs/<run_name>/best_model/best_model.zip
-python scripts/model_inspector.py arch runs/<run_name>/best_model/best_model.zip --diagram
+python scripts/visualize_mujoco.py --mode interactive --model runs/<run_name>/best_model
+python scripts/run_mega_viz.py --model runs/<run_name>/best_model
+python scripts/model_inspector.py arch runs/<run_name>/best_model --diagram
 
 # ArduPilot SITL (two terminals)
 # Terminal 1: sim_vehicle.py -v ArduCopter -f JSON --console

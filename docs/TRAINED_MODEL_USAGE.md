@@ -14,6 +14,13 @@ tracker = TrainedYawTracker.from_path("runs/<run_name>/best_model")
 yaw_rate_cmd = tracker.predict(observation, deterministic=True)
 ```
 
+### Important Notes
+
+- **VecNormalize is required for correct inference**: make sure
+  `runs/<run_name>/vec_normalize.pkl` exists next to the model directory.
+- **Python version mismatch**: `TrainedYawTracker` uses SB3 `custom_objects`
+  for `clip_range` / `lr_schedule`, so models trained on 3.12 can be loaded on 3.10/3.11.
+
 ## TrainedYawTracker Class
 
 The `TrainedYawTracker` class provides a simple wrapper around trained neural network models, handling model loading, observation normalization, and action prediction.
@@ -38,6 +45,7 @@ class TrainedYawTracker:
 **Parameters:**
 - `model_path` (str | Path): Path to model file or directory
   - If directory: searches for `best_model.zip` or `final_model.zip`
+  - Also supports `runs/<run_name>/best_model/` (directory with `best_model.zip`)
   - If file: loads directly
 - `config` (YawTrackingConfig, optional): Environment configuration (uses training config if None)
 
@@ -57,7 +65,7 @@ tracker = TrainedYawTracker.from_path("runs/<run_name>/best_model")
 tracker = TrainedYawTracker.from_path("runs/model_12345/final_model.zip")
 ```
 
-#### `predict(observation, deterministic=True) -> float`
+#### `predict(observation, deterministic=True, dead_zone=None) -> float`
 
 Get yaw rate command from observation vector.
 
@@ -76,6 +84,9 @@ Get yaw rate command from observation vector.
   - `[10]` previous_action: Previous action value
 
 - `deterministic` (bool): Use deterministic policy (True for deployment, False for exploration)
+- `dead_zone` (float | None): Zero out small commands to reduce jitter
+  - `None`: uses `config.action_dead_zone`
+  - Set to `0.0` to disable
 
 **Returns:**
 - `float`: Yaw rate command in range [-1, 1]
@@ -91,8 +102,8 @@ Get yaw rate command from observation vector.
 # Get command
 yaw_cmd = tracker.predict(obs, deterministic=True)
 
-# Scale to actual yaw rate
-max_yaw_rate = 2.0  # rad/s
+# Scale to actual yaw rate (use training config value)
+max_yaw_rate = tracker.config.max_yaw_rate
 actual_yaw_rate = yaw_cmd * max_yaw_rate
 ```
 
@@ -150,7 +161,7 @@ while running:
     
     # Use command with your stabilizer/controller
     # Scale: yaw_rate_cmd in [-1, 1] -> actual speed in rad/s
-    max_yaw_rate = 2.0  # rad/s
+max_yaw_rate = tracker.config.max_yaw_rate
     actual_yaw_rate = yaw_rate_cmd * max_yaw_rate
     
     motors = stabilizer.compute_motors(

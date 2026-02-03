@@ -8,6 +8,12 @@ This module provides utilities for:
 """
 
 from .mavlink_client import DroneState, MAVLinkClient
+from .model_loading import (
+    find_vec_normalize_path,
+    load_model_and_vecnormalize,
+    load_sb3_model,
+    resolve_model_path,
+)
 from .model_export import ModelExporter, export_to_onnx
 from .trained_yaw_tracker import TrainedYawTracker
 from .yaw_tracker_sitl import (
@@ -21,6 +27,10 @@ __all__ = [
     "export_to_onnx",
     "MAVLinkClient",
     "DroneState",
+    "load_model_and_vecnormalize",
+    "load_sb3_model",
+    "resolve_model_path",
+    "find_vec_normalize_path",
     "TrainedYawTracker",
     "YawTrackerSITL",
     "YawTrackerSITLConfig",

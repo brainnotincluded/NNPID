@@ -119,6 +119,21 @@ for step in range(500):
 env.close()
 ```
 
+### 3. Visualize a Trained Model
+
+```bash
+# Interactive visualization
+python scripts/visualize_mujoco.py \
+  --mode interactive \
+  --model runs/<run_name>/best_model
+
+# Record a video
+python scripts/visualize_mujoco.py \
+  --mode video \
+  --model runs/<run_name>/best_model \
+  --output runs/visualizations/demo.mp4
+```
+
 ### 3. Train Your First Model
 
 ```bash
