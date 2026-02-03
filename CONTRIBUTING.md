@@ -37,11 +37,11 @@ git remote add upstream https://github.com/brainnotincluded/NNPID.git
 ### 2. Setup Development Environment
 
 ```bash
-# Install with dev dependencies
+# Install with dev dependencies (full)
 uv sync --all-extras
 
 # Or with pip
-pip install -e ".[dev]"
+pip install -e ".[dev,full]"
 
 # Install pre-commit hooks
 pre-commit install

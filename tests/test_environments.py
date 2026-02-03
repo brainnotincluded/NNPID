@@ -231,10 +231,10 @@ class TestYawTrackingReward:
         """
         config = YawTrackingConfig(
             max_episode_steps=500,
-            target_speed_min=0.1,   # Slow target for reliable testing
+            target_speed_min=0.1,  # Slow target for reliable testing
             target_speed_max=0.1,
-            yaw_authority=0.05,     # Higher authority for responsive control
-            yaw_rate_kp=3.0,        # Higher gain
+            yaw_authority=0.05,  # Higher authority for responsive control
+            yaw_rate_kp=3.0,  # Higher gain
         )
         env = YawTrackingEnv(config=config)
         yield env

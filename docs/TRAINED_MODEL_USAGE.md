@@ -4,6 +4,12 @@ This guide explains how to load and use trained yaw tracking models in your own 
 
 ## Quick Start
 
+### Install (Inference-Only)
+
+```bash
+pip install -e .
+```
+
 ```python
 from src.deployment.trained_yaw_tracker import TrainedYawTracker
 

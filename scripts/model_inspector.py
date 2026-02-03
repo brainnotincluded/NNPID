@@ -22,6 +22,7 @@ from typing import Any
 import numpy as np
 
 from src.deployment.model_loading import load_sb3_model, resolve_model_path
+
 try:
     import torch
 

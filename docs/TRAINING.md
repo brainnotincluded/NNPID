@@ -4,6 +4,9 @@ This guide explains how to train neural network controllers for drone control.
 
 ## Quick Start
 
+Note: Training requires the full dependency set:
+`pip install -e ".[full]"` or `uv sync --all-extras`.
+
 ```bash
 # Train yaw tracking (default settings)
 python scripts/train_yaw_tracker.py

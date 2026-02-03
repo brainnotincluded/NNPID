@@ -40,7 +40,7 @@ a pedestrian using a trained neural network via ArduPilot SITL.
 
 1. **Webots R2023a+** installed
 2. **ArduPilot SITL** built (see below)
-3. **Python dependencies**: `pip install pymavlink stable-baselines3`
+3. **Python dependencies**: `pip install -e ".[full]"`
 4. **First run only**: install Webots controllers with `scripts/shell/setup_controllers.sh`
 
 ### Install ArduPilot SITL

@@ -17,8 +17,8 @@ This is a drone simulation project integrating MuJoCo physics with ArduPilot SIT
 
 ```bash
 # Install dependencies
-uv sync
-pip install -e ".[dev]"
+uv sync --all-extras
+pip install -e ".[dev,full]"
 
 # Pre-commit hooks
 pre-commit install

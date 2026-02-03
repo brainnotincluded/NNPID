@@ -7,8 +7,9 @@ The controller encapsulates model loading, observation normalization, and action
 from __future__ import annotations
 
 import sys
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -28,10 +29,38 @@ except ImportError:
     BaseAlgorithm = Any  # type: ignore
     VecNormalize = Any  # type: ignore
 
-from ..environments.yaw_tracking_env import YawTrackingConfig, YawTrackingEnv
+if TYPE_CHECKING:
+    from ..environments.yaw_tracking_env import YawTrackingConfig
+
 from .model_loading import load_model_and_vecnormalize
 
 logger = get_logger(__name__)
+
+
+@dataclass
+class _MinimalYawTrackingConfig:
+    """Fallback config for inference-only installs."""
+
+    action_dead_zone: float = 0.05
+    max_yaw_rate: float = 2.0
+    target_patterns: list[str] = field(
+        default_factory=lambda: ["circular", "random", "sinusoidal", "step"]
+    )
+    target_speed_min: float = 0.5
+    target_speed_max: float = 2.0
+    control_frequency: float = 100.0
+    yaw_authority: float = 0.20
+
+
+def _build_default_config(config: Any | None) -> Any:
+    if config is not None:
+        return config
+    try:
+        from ..environments.yaw_tracking_env import YawTrackingConfig
+
+        return YawTrackingConfig()
+    except Exception:
+        return _MinimalYawTrackingConfig()
 
 
 class TrainedYawTracker:
@@ -90,7 +119,7 @@ class TrainedYawTracker:
 
         self.model = model
         self.vec_normalize = vec_normalize
-        self.config = config or YawTrackingConfig()
+        self.config = _build_default_config(config)
 
         # Get observation space from model
         if hasattr(model, "observation_space"):
@@ -138,12 +167,23 @@ class TrainedYawTracker:
                 "stable-baselines3 is required. Install with: pip install stable-baselines3"
             )
 
-        env_config = config or YawTrackingConfig()
+        env_config = _build_default_config(config)
+
+        env_factory = None
+        try:
+            from ..environments.yaw_tracking_env import YawTrackingEnv
+
+            def _env_factory() -> Any:
+                return YawTrackingEnv(config=env_config)
+
+            env_factory = _env_factory
+        except Exception:
+            env_factory = None
 
         try:
             model, vec_normalize, _ = load_model_and_vecnormalize(
                 model_path,
-                env_factory=lambda: YawTrackingEnv(config=env_config),
+                env_factory=env_factory,
             )
         except Exception as e:
             if isinstance(e, FileNotFoundError):

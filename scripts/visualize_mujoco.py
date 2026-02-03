@@ -96,9 +96,13 @@ def run_episode(
             if frame is not None:
                 if video_writer is not None:
                     video_writer.append_data(frame)
-                if interactive and display_backend and display_lib:
-                    if not _show_frame(display_backend, display_lib, frame, window_name):
-                        break
+                if (
+                    interactive
+                    and display_backend
+                    and display_lib
+                    and not _show_frame(display_backend, display_lib, frame, window_name)
+                ):
+                    break
 
         if terminated or truncated:
             break

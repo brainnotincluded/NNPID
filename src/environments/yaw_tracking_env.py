@@ -43,17 +43,27 @@ class YawTrackingConfig:
 
     # Target settings
     target_patterns: list[str] = field(
-        default_factory=lambda: ["circular", "random", "sinusoidal", "step"]
+        default_factory=lambda: [
+            "circular",
+            "random",
+            "sinusoidal",
+            "step",
+            "figure8",
+            "spiral",
+            "evasive",
+            "lissajous",
+            "multi_frequency",
+        ]
     )
     target_radius: float = 3.0
-    target_speed_min: float = 0.5  # rad/s
-    target_speed_max: float = 2.0  # rad/s
+    target_speed_min: float = 0.1  # rad/s
+    target_speed_max: float = 0.3  # rad/s
 
     # Action scaling
-    max_yaw_rate: float = 2.0  # rad/s
+    max_yaw_rate: float = 1.0  # rad/s
     action_smoothing: float = 0.3  # Low-pass filter: 0=no smoothing, 1=full smoothing
     max_action_change: float = 0.5  # Max allowed action change per step
-    action_dead_zone: float = 0.05  # Dead zone: actions below this threshold are zeroed
+    action_dead_zone: float = 0.08  # Dead zone: actions below this threshold are zeroed
 
     # Observation noise
     yaw_noise: float = 0.01
@@ -83,24 +93,24 @@ class YawTrackingConfig:
     success_threshold: float = 0.1  # radians
 
     # Termination - lenient for learning
-    max_tilt_angle: float = 1.0  # radians (~57 degrees)
-    max_altitude_error: float = 3.0  # meters
+    max_tilt_angle: float = 0.6  # radians (~34 degrees)
+    max_altitude_error: float = 2.0  # meters
 
     # Stabilizer PID gains (tuned for stability at 100Hz+)
     # See docs/issues/003-hover-pid-instability.md for details
-    altitude_kp: float = 15.0
-    altitude_ki: float = 3.0
-    altitude_kd: float = 8.0
-    attitude_kp: float = 15.0  # was 40.0 - reduced for stability
-    attitude_ki: float = 0.5  # was 2.0 - reduced to prevent windup
-    attitude_kd: float = 5.0  # was 15.0 - reduced for stability
-    yaw_rate_kp: float = 2.0
+    altitude_kp: float = 18.0
+    altitude_ki: float = 2.0
+    altitude_kd: float = 10.0
+    attitude_kp: float = 12.0  # reduced for stability
+    attitude_ki: float = 0.3  # reduced to prevent windup
+    attitude_kd: float = 8.0  # increased for damping
+    yaw_rate_kp: float = 1.5
     base_thrust: float = 0.62  # Hover throttle for 2kg drone with 4x8N motors
 
     # Safety settings (SITL-style)
-    safety_tilt_threshold: float = 0.5  # radians (~28 degrees) - ignore yaw if exceeded
-    yaw_authority: float = 0.20  # Yaw torque authority (allows ~0.6 rad/s yaw)
-    max_integral: float = 0.5  # Anti-windup limit for integral terms
+    safety_tilt_threshold: float = 0.3  # radians (~17 degrees) - ignore yaw if exceeded
+    yaw_authority: float = 0.10  # Yaw torque authority (very low for stability)
+    max_integral: float = 0.2  # Anti-windup limit for integral terms
 
     # Perturbation settings
     perturbations_enabled: bool = False
@@ -442,9 +452,8 @@ class YawTrackingEnv(gym.Env):
             smoothed_action = raw_action
 
         # Apply dead zone - zero out small actions to prevent jitter
-        if self.config.action_dead_zone > 0:
-            if abs(smoothed_action) < self.config.action_dead_zone:
-                smoothed_action = 0.0
+        if self.config.action_dead_zone > 0 and abs(smoothed_action) < self.config.action_dead_zone:
+            smoothed_action = 0.0
 
         yaw_rate_cmd = smoothed_action * self.config.max_yaw_rate
 

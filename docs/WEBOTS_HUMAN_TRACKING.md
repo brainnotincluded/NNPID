@@ -46,7 +46,7 @@ If Webots is not installed, see `INSTALL_WEBOTS.md`.
 
 ```bash
 # Install dependencies
-pip install pymavlink opencv-python
+pip install -e ".[full]"
 
 # First run only: install Webots controllers
 scripts/shell/setup_controllers.sh

@@ -24,10 +24,15 @@ git clone https://github.com/brainnotincluded/NNPID.git
 cd NNPID
 
 # Install dependencies (using uv - recommended)
+# Inference-only (load trained models):
 uv sync
+
+# Full install (training + simulation + visualization):
+uv sync --all-extras
 
 # Or using pip
 pip install -e .
+pip install -e ".[full]"
 
 # Train yaw tracking model
 python scripts/train_yaw_tracker.py --timesteps 500000
@@ -299,8 +304,8 @@ Note: For correct inference, `vec_normalize.pkl` must exist in the run directory
 ## Requirements
 
 - Python 3.10+
-- MuJoCo 3.0+
-- PyTorch or JAX (for neural networks)
+- Inference-only: Stable-Baselines3 + PyTorch
+- Full simulation/training: MuJoCo 3.0+
 - ArduPilot SITL (optional, for deployment)
 
 ### Install ArduPilot SITL

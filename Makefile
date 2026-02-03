@@ -114,7 +114,7 @@ install:
 
 dev:
 	@echo "📦 Installing dev dependencies..."
-	pip install -e ".[dev]"
+	pip install -e ".[dev,full]"
 	pip install ruff mypy bandit vulture radon pyright
 	@echo "🔗 Installing pre-commit hooks..."
 	pre-commit install

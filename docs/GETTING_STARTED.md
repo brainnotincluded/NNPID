@@ -24,7 +24,12 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 # Clone and setup
 git clone https://github.com/brainnotincluded/NNPID.git
 cd NNPID
+
+# Inference-only (load trained models)
 uv sync
+
+# Full install (training + simulation + visualization)
+uv sync --all-extras
 
 # Activate environment
 source .venv/bin/activate
@@ -45,6 +50,9 @@ source .venv/bin/activate  # Linux/macOS
 
 # Install package
 pip install -e .
+
+# Full install (training + simulation + visualization)
+pip install -e ".[full]"
 ```
 
 ### Option 3: Development Install
@@ -54,7 +62,7 @@ git clone https://github.com/brainnotincluded/NNPID.git
 cd NNPID
 
 # Install with dev dependencies
-pip install -e ".[dev]"
+pip install -e ".[dev,full]"
 ```
 
 ## Verify Installation

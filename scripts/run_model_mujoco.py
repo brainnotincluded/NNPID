@@ -32,9 +32,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-import numpy as np
-
 import imageio
+import numpy as np
 
 # Add project root to path
 project_root = Path(__file__).parent.parent

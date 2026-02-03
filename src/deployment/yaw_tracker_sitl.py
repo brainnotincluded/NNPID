@@ -31,8 +31,8 @@ except ImportError:
     SB3_AVAILABLE = False
 
 from ..utils.logger import get_logger
-from .model_loading import find_vec_normalize_path, load_sb3_model, resolve_model_path
 from ..utils.rotations import Rotations
+from .model_loading import find_vec_normalize_path, load_sb3_model, resolve_model_path
 
 logger = get_logger(__name__)
 
@@ -179,7 +179,8 @@ class YawTrackerSITL:
                 import pickle
 
                 with open(vec_norm_path, "rb") as f:
-                    self._vec_normalize = pickle.load(f)
+                    # VecNormalize is a trusted training artifact (not user input).
+                    self._vec_normalize = pickle.load(f)  # nosec B301
                 self._vec_normalize.training = False
                 logger.info("Loaded VecNormalize from %s", vec_norm_path)
             except Exception as e:

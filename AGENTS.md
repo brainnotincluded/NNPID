@@ -18,8 +18,9 @@ For Cursor/LLM guidance, see `.cursorrules`. For human standards, see
 
 ```bash
 # Install dependencies
-uv sync                     # recommended
-pip install -e ".[dev]"     # alternative
+uv sync                     # inference-only
+uv sync --all-extras        # full install
+pip install -e ".[dev,full]"  # alternative
 
 # Run tests
 pytest tests/ -v               # all tests

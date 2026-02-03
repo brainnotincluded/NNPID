@@ -44,8 +44,8 @@ Ensure `sim_vehicle.py` is available on your PATH (or use the full path from `~/
 # Clone NNPID and install
 git clone https://github.com/brainnotincluded/NNPID.git
 cd NNPID
-pip install -e ".[dev]"
-pip install pymavlink webots-controller  # For Webots
+pip install -e ".[full]"
+pip install webots-controller  # For Webots
 ```
 
 ### 3. Webots Setup

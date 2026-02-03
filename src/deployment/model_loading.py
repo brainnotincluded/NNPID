@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from ..utils.logger import get_logger
 
@@ -29,7 +30,79 @@ DEFAULT_CUSTOM_OBJECTS = {
 
 def _require_sb3() -> None:
     if not SB3_AVAILABLE:
-        raise ImportError("stable-baselines3 is required. Install with: pip install stable-baselines3")
+        raise ImportError(
+            "stable-baselines3 is required. Install with: pip install stable-baselines3"
+        )
+
+
+def _minimal_yaw_env_factory() -> Callable[[], Any]:
+    """Create a minimal Gymnasium env for VecNormalize without MuJoCo."""
+    import gymnasium as gym
+    import numpy as np
+    from gymnasium import spaces
+
+    class _MinimalYawTrackingEnv(gym.Env):
+        metadata: dict[str, Any] = {}
+
+        def __init__(self) -> None:
+            self.observation_space = spaces.Box(
+                low=np.array(
+                    [
+                        -1,
+                        -1,  # target_direction (unit vector)
+                        -5,  # target_angular_velocity
+                        -5,  # current_yaw_rate
+                        -np.pi,  # yaw_error
+                        -1,
+                        -1,  # roll, pitch (normalized)
+                        -5,  # altitude_error
+                        -1,  # previous_action
+                        0,  # time_on_target (normalized)
+                        0,  # target_distance (normalized)
+                    ],
+                    dtype=np.float32,
+                ),
+                high=np.array(
+                    [
+                        1,
+                        1,  # target_direction
+                        5,  # target_angular_velocity
+                        5,  # current_yaw_rate
+                        np.pi,  # yaw_error
+                        1,
+                        1,  # roll, pitch
+                        5,  # altitude_error
+                        1,  # previous_action
+                        1,  # time_on_target
+                        10,  # target_distance
+                    ],
+                    dtype=np.float32,
+                ),
+                dtype=np.float32,
+            )
+            self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(1,), dtype=np.float32)
+
+        def reset(self, *, seed: int | None = None, options: dict[str, Any] | None = None):
+            super().reset(seed=seed)
+            obs = np.zeros(self.observation_space.shape, dtype=np.float32)
+            return obs, {}
+
+        def step(self, action):  # type: ignore[override]
+            obs = np.zeros(self.observation_space.shape, dtype=np.float32)
+            return obs, 0.0, True, False, {}
+
+    return _MinimalYawTrackingEnv
+
+
+def default_env_factory() -> Callable[[], Any]:
+    """Return the best available env factory for VecNormalize."""
+    try:
+        from ..environments.yaw_tracking_env import YawTrackingEnv
+
+        return lambda: YawTrackingEnv()
+    except Exception as exc:
+        logger.warning("Falling back to minimal VecNormalize env: %s", exc)
+        return _minimal_yaw_env_factory()
 
 
 def resolve_model_path(model_path: str | Path) -> Path:
@@ -101,13 +174,16 @@ def load_sb3_model(
 
 def load_vec_normalize(
     model_path: str | Path,
-    env_factory: Callable[[], Any],
+    env_factory: Callable[[], Any] | None = None,
 ) -> VecNormalize | None:
     """Load VecNormalize for a model if present."""
     _require_sb3()
     vec_norm_path = find_vec_normalize_path(model_path)
     if vec_norm_path is None:
         return None
+
+    if env_factory is None:
+        env_factory = default_env_factory()
 
     try:
         dummy_vec_env = make_vec_env(env_factory, n_envs=1)
@@ -121,7 +197,7 @@ def load_vec_normalize(
 
 def load_model_and_vecnormalize(
     model_path: str | Path,
-    env_factory: Callable[[], Any],
+    env_factory: Callable[[], Any] | None = None,
     custom_objects: dict[str, Any] | None = None,
 ) -> tuple[BaseAlgorithm, VecNormalize | None, Path]:
     """Load model and VecNormalize together."""
